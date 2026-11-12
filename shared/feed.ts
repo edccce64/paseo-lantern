@@ -5,15 +5,16 @@ export const CHANNELS = [
   { id: "aihot-selected", title: "AIHOT 精选" },
   { id: "aihot-hot", title: "AIHOT 热点" },
   { id: "qiaomu", title: "乔木精选" },
+  { id: "mine", title: "我的订阅" },
 ] as const;
 
 export type ChannelId = (typeof CHANNELS)[number]["id"];
 
-export const channelIdSchema = z.enum(["aihot-selected", "aihot-hot", "qiaomu"]);
+export const channelIdSchema = z.enum(["aihot-selected", "aihot-hot", "qiaomu", "mine"]);
 
 export const feedItemSchema = z.object({
   id: z.string(),
-  source: z.enum(["aihot", "qiaomu"]),
+  source: z.enum(["aihot", "qiaomu", "rss"]),
   title: z.string(),
   /** 来源名，例如「TechCrunch：AI（RSS）」 */
   origin: z.string(),

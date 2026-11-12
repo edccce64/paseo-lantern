@@ -1,74 +1,75 @@
 # HANDOFF · paseo-lantern（提灯）
 
-最后更新：2026-11-12 16:50
+最后更新：2026-11-12 17:20
 
 ## 当前位置
 
-**P1 已完成。** 三个频道都能拉到真实数据，带磁盘缓存与条件请求。
-下一步是 P2：文章详情页（乔木正文抽取 + 版本切换）。
+**P2 已完成。** 列表点进去能读正文，乔木有原文 / 译文 / 乔木改写三档切换。
+下一步 P3：个人订阅（OPML 导入导出 + 定时抓取）。
 
 规格见 `docs/SPEC.md`。
 
-## 目录与命令
+## 命令
 
 ```bash
 cd C:\Users\edcccc\.paseo\projects\paseo-lantern
 npx tsc --noEmit
 "D:\paseo\resources\bin\paseo.cmd" plugin reload paseo-lantern
 "D:\paseo\resources\bin\paseo.cmd" plugin logs paseo-lantern
-"D:\paseo\resources\bin\paseo.cmd" plugin ls paseo-lantern
 ```
-
-`paseo` 不在 PATH，必须写全路径。
 
 ## 文件
 
 | 文件 | 作用 |
 | --- | --- |
-| `paseo-plugin.json` | id `paseo-lantern`，显示名「提灯」，`requirements.paseo >=0.15.4` |
-| `index.client.tsx` | 注册屏幕 `lantern` 与侧边栏头部行（排在 Idealoft 下方） |
-| `index.server.ts` | 注册 `lantern.ping` 与 `lantern.list` |
-| `client/screen.tsx` | 频道 chips + 状态行 + `FlatList` 列表，手机优先 |
-| `client/item.tsx` | 侧边栏行，图标 `Lamp` |
-| `shared/feed.ts` | 频道常量、条目 schema、`lantern.list` 契约、四种取数状态 |
-| `shared/ping.ts` | 自检契约 |
-| `server/feed.ts` | 按频道分发 |
-| `server/cache.ts` | 内存 + 磁盘缓存（`%USERPROFILE%\.paseo\data\paseo-lantern\`） |
-| `server/sources/http.ts` | 15 秒超时、ETag、429 处理 |
-| `server/sources/aihot.ts` | `/api/v1/items`、`/api/v1/hot-topics` |
-| `server/sources/qiaomu.ts` | `/api/entries`，`/api/sources` 映射来源名（6 小时缓存） |
-| `server/ping.ts` | 返回 daemon 时间 |
+| `index.client.tsx` | 屏幕 `lantern` + 侧边栏头部行 |
+| `index.server.ts` | 注册 `lantern.ping` / `lantern.list` / `lantern.article` |
+| `client/screen.tsx` | 频道 chips、状态行、列表；点条目切到正文视图 |
+| `client/article.tsx` | 正文视图：返回、标题、版本 chips、Markdown、底部「打开原文」 |
+| `client/item.tsx` | 侧边栏行 |
+| `shared/feed.ts` | 频道、条目 schema、四态取数 |
+| `shared/article.ts` | 正文契约 |
+| `server/feed.ts` | 列表分发 |
+| `server/article.ts` | 正文分发 |
+| `server/qiaomu-article.ts` | 乔木正文：entry → content → 兜底抓原文页；译文与改写 |
+| `server/text/markdown.ts` | HTML→Markdown；Readability 兜底 |
+| `server/sources/*.ts` | AIHOT、乔木、HTTP、缓存 |
 
-## 取数规则
+## 正文取法（乔木）
 
-- 缓存有效期 10 分钟。期内不发请求，状态 `cached`。
-- 过期后带 `if-none-match` 请求。返回 304 → `revalidated`，内容不变。
-- 返回 200 → `live`，写盘。
-- 请求失败但有旧缓存 → `stale`，界面显示「离线缓存」。
-- 没有旧缓存又失败 → 抛错，界面给「重试」。
-- 429 会读 `retry-after`，把秒数写进错误文案。
+1. `/api/entry/:id` 取 entry，内含 `content`（HTML）。30 分钟缓存。
+2. `content` 用 turndown 转 Markdown，存 `qiaomu-body-<id>`，7 天有效。
+3. `content` 为空或太短时，抓 `entry.link` 整页，用 Readability 抽正文，提示「服务端没存正文，已从原文页抓取」。
+4. 都拿不到就给摘要。
+5. 改写：`rewrite.body` 本身就是 Markdown，直接用。
+6. 译文：`/api/entry/:id/translation`。`status` 是 queued/processing 时提示「译本还在生成」。
 
-## 验证记录（P1）
+AIHOT 条目没有正文接口。正文视图直接展示列表里带的摘要，提示「AIHOT 不提供单篇正文」，底部给「打开原文」。
 
-- 已验证：`npx tsc --noEmit` 退出码 0。
-- 已验证：`rg` 审计（`document.|window.|<tag|className=|onClick=`）0 命中。
-- 已验证：AIHOT 精选显示真实条目，标题 + 来源 + 「精选」+ 时间。
-- 已验证：AIHOT 热点显示 Top 10，带「N 家信源」。
-- 已验证：乔木精选显示中文标题与来源名（Product Hunt、Latent Space 等）。
-- 已验证：点「刷新」走 304 路径，状态行变「已是最新 16:47」。
-- 已验证：缓存文件落盘 `aihot-selected.json`、`aihot-hot.json`、`qiaomu.json`、`qiaomu-sources.json`。
-- 未验证：真正断网时的 `stale` 分支（没断网测）。
-- 未验证：iPhone 上的显示与手感。
+## 导航
 
-## 踩过的坑
+屏幕之间不能互相 openScreen（`PluginScreenProps` 只有 `params` 和 `navigation`，没有 openScreen）。
+正文用屏幕内状态切换：`openItem` 有值就渲染 `ArticleView`，点「返回」清空。手机上相当于推入再退回。
 
-- 横向 `ScrollView` 做频道条时，第二次切换后整条会消失（高度塌成 0）。改成 `View` + `flexWrap` 后稳定。三个 chip 在 375 宽的手机上正好一行放下。
-- 状态文案最初只有「缓存 / 更新于」两档，304 被显示成「缓存」，容易误读成没刷新。现在分四档。
+## 验证记录（P2）
 
-## P2 计划
+- 已验证：`npx tsc --noEmit` 退出码 0；`rg` 审计 0 命中。
+- 已验证：乔木条目点进去显示正文（Markdown 段落、标题、加粗、代码块、链接都正常渲染）。
+- 已验证：版本 chips 显示「原文 / 译文 / 乔木改写」；这篇译文不可用，chip 变淡且点不动；点「乔木改写」切到中文改写。
+- 已验证：meta 行显示来源名（Product Hunt），不是 sourceId。
+- 已验证：AIHOT 条目点进去显示摘要 + 说明 + 打开原文，没有版本 chips。
+- 已验证：缓存落盘 `qiaomu-entry-*`、`qiaomu-body-*`、`qiaomu-translation-*`。
+- 未验证：iPhone 上的正文阅读体验与图片加载。
+- 未验证：Readability 兜底分支（本轮样本都有 content，没走到）。
 
-1. 文章详情页：标题、meta、版本切换（原文 / 译文 / 乔木改写）。
-2. 正文抽取：`linkedom` + `@mozilla/readability` + `turndown`，落盘 Markdown。
-3. 用宿主 `Markdown` 组件渲染正文。
-4. 底部条：`陪读`（先只写进 agent 输入框）、`原文`。
-5. AIHOT 条目只有摘要，不给正文。
+## 遗留
+
+1. 正文缓存没有容量上限与淘汰（SPEC 写的是 100 篇 / 30 天）。P7 再做。
+2. 正文图片点击会打开宿主图片预览，这是 `Markdown` 组件自带行为。
+3. 列表行的标题太长时两行截断，正文页标题完整显示。
+
+## P3 计划
+
+1. 个人订阅：OPML 导入导出、单源增删改。
+2. 每源 15–30 分钟抓取，条件请求，保留 200 条。
+3. 频道列表加「我的订阅」分组。

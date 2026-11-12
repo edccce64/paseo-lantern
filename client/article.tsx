@@ -35,11 +35,23 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const article = useRpc(articleRpc);
   const [version, setVersion] = useState<ArticleVersion>("original");
   const isQiaomu = item.source === "qiaomu";
+  const isRss = item.source === "rss";
+  const needsFetch = isQiaomu || isRss;
 
   const query = useQuery({
-    queryKey: ["lantern-article", item.id, version],
-    queryFn: () => article({ id: item.id, version }),
-    enabled: isQiaomu,
+    queryKey: ["lantern-article", item.source, item.id, version],
+    queryFn: () =>
+      isRss
+        ? article({
+            id: item.id,
+            url: item.url,
+            title: item.title,
+            origin: item.origin,
+            publishedAt: item.publishedAt,
+            summary: item.summary,
+          })
+        : article({ id: item.id, version }),
+    enabled: needsFetch,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -112,14 +124,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     };
   }, [theme, layout.compact]);
 
-  const result = isQiaomu ? query.data : null;
+  const result = needsFetch ? query.data : null;
   const versions = result?.versions ?? { original: true, translation: false, rewrite: false };
-  const loading = isQiaomu && query.isPending;
-  const error = isQiaomu ? query.error : null;
-  const markdown = isQiaomu ? (result?.markdown ?? null) : item.summary;
-  const note = isQiaomu ? (result?.note ?? null) : "AIHOT 不提供单篇正文，摘要如下。";
-  const publishedAt = isQiaomu ? (result?.publishedAt ?? item.publishedAt) : item.publishedAt;
-  const origin = isQiaomu ? (result?.origin ?? item.origin) : item.origin;
+  const loading = needsFetch && query.isPending;
+  const error = needsFetch ? query.error : null;
+  const markdown = needsFetch ? (result?.markdown ?? null) : item.summary;
+  const note = needsFetch
+    ? (result?.note ?? null)
+    : "AIHOT 不提供单篇正文，摘要如下。";
+  const publishedAt = result?.publishedAt ?? item.publishedAt;
+  const origin = item.origin || result?.origin || "订阅";
 
   return (
     <View style={styles.screen}>

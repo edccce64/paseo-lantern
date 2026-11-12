@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { CHANNELS, type ChannelId, type FeedItem, type FeedState, listRpc } from "../shared/feed";
 import { ArticleView } from "./article";
+import { SubsPanel } from "./subs-panel";
 
 function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
@@ -39,6 +40,7 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
   const list = useRpc(listRpc);
   const [channel, setChannel] = useState<ChannelId>("aihot-selected");
   const [openItem, setOpenItem] = useState<FeedItem | null>(null);
+  const [subsOpen, setSubsOpen] = useState(false);
 
   const query = useQuery({
     queryKey: ["lantern", channel],
@@ -190,15 +192,27 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
 
       <View style={styles.statusRow}>
         <Text style={styles.status}>{statusText}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="刷新"
-          disabled={refreshing}
-          onPress={() => void refresh()}
-          style={styles.refresh}
-        >
-          <Text style={styles.refreshText}>{refreshing ? "刷新中" : "刷新"}</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+          {channel === "mine" ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="订阅管理"
+              onPress={() => setSubsOpen(true)}
+              style={styles.refresh}
+            >
+              <Text style={styles.refreshText}>订阅管理</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="刷新"
+            disabled={refreshing}
+            onPress={() => void refresh()}
+            style={styles.refresh}
+          >
+            <Text style={styles.refreshText}>{refreshing ? "刷新中" : "刷新"}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {query.isPending ? (
@@ -229,11 +243,20 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
           contentContainerStyle={data.length === 0 ? { flexGrow: 1 } : undefined}
           ListEmptyComponent={
             <View style={styles.state}>
-              <Text style={styles.stateText}>这个频道还没有内容</Text>
+              <Text style={styles.stateText}>
+                {channel === "mine" ? "还没有订阅，点右上角「订阅管理」加一个。" : "这个频道还没有内容"}
+              </Text>
             </View>
           }
         />
       )}
+
+      <SubsPanel
+        theme={theme}
+        layout={layout}
+        open={subsOpen}
+        onOpenChange={setSubsOpen}
+      />
     </View>
   );
 }

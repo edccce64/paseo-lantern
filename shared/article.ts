@@ -9,6 +9,11 @@ export const articleRpc = defineRpc({
   name: "lantern.article",
   input: z.object({
     id: z.string().min(1),
+    url: z.string().optional(),
+    title: z.string().optional(),
+    origin: z.string().optional(),
+    publishedAt: z.string().optional(),
+    summary: z.string().nullable().optional(),
     version: articleVersionSchema.optional(),
   }),
   output: z.object({

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { CHANNELS, type ChannelId, type FeedItem, type FeedState, listRpc } from "../shared/feed";
+import { ArticleView } from "./article";
 
 function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
@@ -37,6 +38,7 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
   const queryClient = useQueryClient();
   const list = useRpc(listRpc);
   const [channel, setChannel] = useState<ChannelId>("aihot-selected");
+  const [openItem, setOpenItem] = useState<FeedItem | null>(null);
 
   const query = useQuery({
     queryKey: ["lantern", channel],
@@ -133,9 +135,7 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={item.title}
-        onPress={() => {
-          void openExternalUrl(item.url).catch(() => toast.error("打不开这个链接"));
-        }}
+        onPress={() => setOpenItem(item)}
         style={styles.row}
       >
         <Text style={styles.rowTitle} numberOfLines={2}>
@@ -157,6 +157,17 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
   const statusText = query.data
     ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
     : "";
+
+  if (openItem) {
+    return (
+      <ArticleView
+        item={openItem}
+        theme={theme}
+        layout={layout}
+        onBack={() => setOpenItem(null)}
+      />
+    );
+  }
 
   return (
     <View style={styles.screen}>

@@ -28,7 +28,7 @@ export type SourceResult = {
   state: FeedState;
 };
 
-async function sourceNames(): Promise<Map<string, string>> {
+export async function sourceNames(): Promise<Map<string, string>> {
   const cached = await readCache<Array<{ id: string; name: string }>>("qiaomu-sources");
   const fresh = cached !== null && Date.now() - cached.fetchedAt < SOURCES_TTL_MS;
   if (cached && fresh) {

@@ -52,12 +52,12 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 译文：AIHOT 与「我的订阅」的英文正文点一下，服务端直连 DeepSeek 翻成中文 | 部分完成（服务端已验证，界面未实测） |
 | 已读：列表未读圆点，打开即标已读 | 部分完成（客户端未实测） |
 | 收藏：正文页底部按钮 + 顶部「收藏」频道 | 部分完成（客户端未实测） |
+| 桌面工作区分屏面板：和 agent 并排看同一份界面 | 部分完成（未实测） |
 
 ## 4. 还没做
 
 | 项 | 原计划 | 说明 |
 | --- | --- | --- |
-| P6 桌面工作区分屏面板 | `addWorkspacePanel`，和 agent 左右并排 | 未开始 |
 | P7 打磨 | 缓存淘汰上限、错误态、限流文案 | 未开始 |
 | 乔木侧生成中文版 | 原 P5 | 取消。乔木 9 篇样本 7 篇有改写，译文 9/9 返回 unavailable，乔木自己能给的够用 |
 | Composer pill | agent 输入栏常驻按钮 | 被 0.16 卡住，见第 8 节 |
@@ -75,6 +75,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `client/article.tsx` | 368 | 正文视图：返回、标题、版本 chips、Markdown、底部「陪读 / 原文」、陪读确认弹窗 |
 | `client/subs-panel.tsx` | 250 | 订阅管理弹窗：列表、加源、删源、导入导出 OPML |
 | `client/companion.ts` | 43 | 陪读提示词拼装 |
+| `client/panel.tsx` | 10 | 工作区分屏面板，渲染同一个 `LanternSurface` |
 | `client/item.tsx` | 13 | 侧边栏行，图标 `Lamp` |
 
 服务端（跑在 daemon 子进程里）：
@@ -109,7 +110,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 
 入口：
 
-- `index.client.tsx`：注册屏幕 `lantern` + 侧边栏头部行。
+- `index.client.tsx`：注册屏幕 `lantern`、工作区分屏面板 `lantern`（图标 `Lamp`）、侧边栏头部行。
 - `index.server.ts`：注册 11 个 RPC，并 `registerSettings(lanternStateSettings)`。
 
 ---
@@ -279,16 +280,24 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 - `read` 只留最后 500 条；`star` 存整条快照，所以收藏的条目即使从原频道消失也还在。
 - 写入用 revision 乐观锁；返回 false（冲突）就 `reload()` 一次。
 
+## 11.10 桌面分屏面板（2026-11-13 02:20）
+
+`client.addWorkspacePanel({ id: "lantern", title: "提灯", icon: "Lamp", Component: LanternPanel })`。
+
+- 面板与全屏页共用 `LanternSurface`，只是外层容器不同。
+- `index.client.tsx` 用 `LanternScreen` 薄包装把 `PluginScreenProps` 适配成 `LanternSurface` 需要的 `theme` / `layout`。
+- 已核对桌面 app 的 bundle 里存在 `addWorkspacePanel`（`app-dist/_expo/static/js/web/index-*.js`）。
+
 ## 12. 下次开工建议
 
-先实测已读与收藏的界面（第 14 节第 16–19 条），再实测「译文」chip（第 12–15 条）。
+先实测界面：已读与收藏（第 14 节第 16–19 条）、译文 chip（第 12–15 条）、桌面分屏面板（第 20 条）。
 
-之后可做的两件事：
+之后只剩 P7 打磨：
 
-1. P6 桌面工作区分屏面板：`addWorkspacePanel`，和 agent 左右并排。
-2. P7 正文缓存加容量上限与淘汰（现在只按时间过期）。
-
-再加一层打磨：收藏支持取消时给个提示，列表支持下拉刷新之外的手势。
+1. 正文缓存加容量上限与淘汰（现在只按时间过期，SPEC 写的是 100 篇 / 30 天）。
+2. 收藏取消时给提示。
+3. 订阅很多时的抓取耗时（现在是并发 3、懒加载）。
+4. 限流与网络错误的文案统一。
 
 ---
 
@@ -336,3 +345,4 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 17. 打开一篇文章点「收藏」，按钮变「已收藏」。（未验证）
 18. 回列表切到「收藏」频道，刚收藏那篇在最上面。（未验证）
 19. 重开 App，「收藏」频道内容还在。（验证 host settings 是否真的落下）
+20. 桌面工作区里能同时开「提灯」面板和 agent，左右并排，列表与正文都能用。（未验证）

@@ -49,7 +49,15 @@ function stateLabel(state: FeedState): string {
   }
 }
 
+export type LanternSurfaceProps = Pick<PluginScreenProps, "theme" | "layout">;
+
+/** 全屏页入口 */
 export function LanternScreen({ theme, layout }: PluginScreenProps) {
+  return <LanternSurface theme={theme} layout={layout} />;
+}
+
+/** 全屏页和工作区分屏面板共用同一个界面 */
+export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const list = useRpc(listRpc);

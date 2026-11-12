@@ -49,7 +49,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
 | 陪读：弹窗确认后发给最近活跃 agent | 已完成（已实测发送） |
-| 译文：「我的订阅」英文正文点一下，服务端直连 DeepSeek 翻成中文 | 部分完成（服务端已验证，界面未实测） |
+| 译文：AIHOT 与「我的订阅」的英文正文点一下，服务端直连 DeepSeek 翻成中文 | 部分完成（服务端已验证，界面未实测） |
 
 ## 4. 还没做
 
@@ -128,7 +128,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `qiaomu-translation-<id>.json` | 乔木译文 | 30 分钟 |
 | `mine-<subId>.json` | 单个订阅抓到的条目 | 15 分钟 |
 | `page-<sha1>.json` | 订阅条目正文 | 7 天 |
-| `translations/<key>.json` | 个人订阅的本地译文 | 永久 |
+| `translations/<key>.json` | AIHOT 与个人订阅的本地译文 | 永久 |
 
 `key` / `<sha1>` 都是条目 id 或 url 的 sha1 前 16 位。
 
@@ -253,6 +253,12 @@ AIHOT（匿名只读）：
 - 接口：`https://api.deepseek.com/chat/completions`，模型 `deepseek-chat`，key 读 `~/.pi/agent/auth.json` 的 `deepseek.key`（也认 `DEEPSEEK_API_KEY`）。
 
 坑：把「第 x/y 段」写进 user 消息，模型会把它当正文一起输出。现已改成只发片段，另加一层前缀清理。
+
+## 11.8 AIHOT 也可以点译文（2026-11-13 01:50）
+
+AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同一套逻辑。实测「黄仁勋辞任」那篇（3074 字符、2 段）：6 秒出 1245 字中文稿，`versions.translation` 为 `true`。
+
+乔木继续用乔木自己的译文，不进这套。
 
 ## 12. 下次开工建议
 

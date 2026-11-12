@@ -54,6 +54,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const [translateError, setTranslateError] = useState("");
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";
+  const isAihot = item.source === "aihot";
 
   const query = useQuery({
     queryKey: ["lantern-article", item.source, item.id, version],
@@ -78,7 +79,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const statusQuery = useQuery({
     queryKey: ["lantern-translate-status", item.id],
     queryFn: () => translateStatus({ id: item.id }),
-    enabled: isRss && translating,
+    enabled: (isRss || isAihot) && translating,
     refetchInterval: translating ? 2000 : false,
     retry: 1,
   });
@@ -303,8 +304,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const publishedAt = result?.publishedAt ?? item.publishedAt;
   const origin = item.origin || result?.origin || "订阅";
 
-  /** 「我的订阅」只有英文正文才给译文 chip */
-  const showTranslate = isRss && ((result?.looksEnglish ?? false) || versions.translation);
+  /** AIHOT 和「我的订阅」的英文正文才给译文 chip；乔木自己有译文 */
+  const showTranslate =
+    (isRss || isAihot) && ((result?.looksEnglish ?? false) || versions.translation);
   const chips: Array<{ id: ArticleVersion; title: string }> = isQiaomu
     ? VERSION_LABELS
     : showTranslate
@@ -323,8 +325,8 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
   function availableVersion(id: ArticleVersion): boolean {
     if (id === "original") return versions.original;
-    // 「我的订阅」的译文 chip 总是可点：没译文时点它就是开翻
-    if (id === "translation") return isRss ? true : versions.translation;
+    // AIHOT 与「我的订阅」的译文 chip 总是可点：没译文时点它就是开翻
+    if (id === "translation") return isQiaomu ? versions.translation : true;
     return versions.rewrite;
   }
 

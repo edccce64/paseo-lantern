@@ -9,7 +9,17 @@ export default function contribute(client: PluginClientContext) {
     id: "lantern",
     title: "提灯",
     icon: "Lamp",
+    context: "workspace",
     Component: LanternPanel,
+  });
+  client.addCommandCenterItem({
+    id: "lantern-panel",
+    title: "打开提灯面板",
+    icon: "Lamp",
+    context: "workspace",
+    onSelect({ openPanel }) {
+      openPanel("lantern");
+    },
   });
   client.addSidebarHeaderItem({ id: "lantern", title: "提灯", Component: LanternItem });
   return () => {};

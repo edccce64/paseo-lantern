@@ -287,6 +287,8 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 - 面板与全屏页共用 `LanternSurface`，只是外层容器不同。
 - `index.client.tsx` 用 `LanternScreen` 薄包装把 `PluginScreenProps` 适配成 `LanternSurface` 需要的 `theme` / `layout`。
 - 已核对桌面 app 的 bundle 里存在 `addWorkspacePanel`（`app-dist/_expo/static/js/web/index-*.js`）。
+- 入口：工作区里的 Command Center 搜「打开提灯面板」（0.15.4 的 Command Center 快捷键未确认，可能不是 Ctrl+K）。
+- 注意：面板不会自动出现在标签栏，必须先通过 Command Center 或其他入口  才出现。
 
 ## 12. 下次开工建议
 

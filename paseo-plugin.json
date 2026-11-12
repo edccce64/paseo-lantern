@@ -1,0 +1,9 @@
+{
+  "id": "paseo-lantern",
+  "name": "提灯",
+  "description": "读 AIHOT 和乔木 RSS，读到不懂的地方，一键把文章交给 agent 陪读。",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.15.4"
+  }
+}

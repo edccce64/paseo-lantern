@@ -37,17 +37,33 @@ function textOf(node: Node): string {
   return "";
 }
 
+function decodeEntities(value: string): string {
+  const codePoint = (input: string, radix: number): string => {
+    const code = Number.parseInt(input, radix);
+    if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return "";
+    return String.fromCodePoint(code);
+  };
+  return (
+    value
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => codePoint(hex, 16))
+      .replace(/&#(\d+);/g, (_, dec: string) => codePoint(dec, 10))
+      .replace(/&nbsp;/g, " ")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      // &amp; 必须最后换，否则 &amp;lt; 会变成 <
+      .replace(/&amp;/g, "&")
+  );
+}
+
 function stripHtml(value: string): string {
-  return value
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+  return decodeEntities(
+    value
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+  )
     .replace(/\s+/g, " ")
     .trim();
 }

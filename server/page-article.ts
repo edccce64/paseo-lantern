@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { ArticleResult, ArticleVersion } from "../shared/article";
 import { readCache, writeCache } from "./cache";
 import { readLocalRewrite } from "./rewrite-files";
@@ -10,7 +11,9 @@ const PAGE_TIMEOUT_MS = 20_000;
 type TextCache = { markdown: string };
 
 function keyFor(url: string): string {
-  return `page-${Buffer.from(url).toString("base64url").slice(0, 40)}`;
+  // 不能截断 base64：新闻站的 URL 前 30 字节几乎相同（/2026/11/12/…），
+  // 截成 40 字符后同一天的文章会撞到同一个缓存键，读到别篇的正文。
+  return `page-${crypto.createHash("sha1").update(url).digest("hex").slice(0, 20)}`;
 }
 
 async function loadPage(url: string): Promise<string | null> {

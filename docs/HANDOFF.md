@@ -26,7 +26,7 @@ npx tsc --noEmit
 | 文件 | 作用 |
 | --- | --- |
 | `paseo-plugin.json` | id `paseo-lantern`，显示名「提灯」，`requirements.paseo >=0.15.4` |
-| `index.client.tsx` | 注册屏幕 `lantern` 与侧边栏脚部行 |
+| `index.client.tsx` | 注册屏幕 `lantern` 与侧边栏头部行（`addSidebarHeaderItem`，排在 Idealoft 下方） |
 | `client/screen.tsx` | 空态页：标题、一行说明、刷新按钮 |
 | `client/item.tsx` | 侧边栏行，Lucide 图标 `Lamp` |
 | `index.server.ts` | 注册 `lantern.ping` |

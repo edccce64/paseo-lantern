@@ -45,6 +45,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 侧边栏进入「提灯」全屏页 | 已完成 |
 | 四个频道：AIHOT 精选 / AIHOT 热点 / 乔木精选 / 我的订阅 | 已完成 |
 | 列表点开正文，Markdown 渲染 | 已完成 |
+| AIHOT 正文：从原文页抽取（两个频道都是） | 已完成 |
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
 | 陪读：弹窗确认后发给最近活跃 agent | 已完成（已实测发送） |
@@ -149,6 +150,8 @@ AIHOT（匿名只读）：
 - `GET https://aihot.news/api/v1/items?mode=selected&window=24h&limit=`
 - `GET https://aihot.news/api/v1/hot-topics`
 - 没有单篇正文接口，官方禁止猜 `/api/v1/items/{id}`。
+- 热点接口（`hot-topics`）不返回 `summary`。所以两个频道的正文都靠 daemon 从 `links.original` 抓原文页再抽。实测 10 篇热点全部抽取成功（567–26663 字）。
+- 抽不到时退回 `summary`；热点没有 `summary`，此时只能看「抓不到正文」的提示。
 - 轮询最快 60 秒；单 IP 每分钟超约 60 次返 429。
 - 使用规则：对外商业、公开镜像、批量再分发需书面授权。自用免费。
 

@@ -54,13 +54,13 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const [translateError, setTranslateError] = useState("");
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";
-  const needsFetch = isQiaomu || isRss;
 
   const query = useQuery({
     queryKey: ["lantern-article", item.source, item.id, version],
     queryFn: () =>
-      isRss
-        ? article({
+      isQiaomu
+        ? article({ id: item.id, version })
+        : article({
             id: item.id,
             url: item.url,
             title: item.title,
@@ -68,9 +68,8 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
             publishedAt: item.publishedAt,
             summary: item.summary,
             version,
-          })
-        : article({ id: item.id, version }),
-    enabled: needsFetch,
+          }),
+    enabled: true,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -291,18 +290,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     }
   }
 
-  const result = needsFetch ? query.data : null;
+  const result = query.data ?? null;
   const versions = result?.versions ?? {
     original: true,
     translation: false,
     rewrite: false,
   };
-  const loading = needsFetch && query.isPending;
-  const error = needsFetch ? query.error : null;
-  const markdown = needsFetch ? (result?.markdown ?? null) : item.summary;
-  const note = needsFetch
-    ? (result?.note ?? null)
-    : "AIHOT 不提供单篇正文，摘要如下。";
+  const loading = query.isPending;
+  const error = query.error;
+  const markdown = result?.markdown ?? null;
+  const note = result?.note ?? null;
   const publishedAt = result?.publishedAt ?? item.publishedAt;
   const origin = item.origin || result?.origin || "订阅";
 

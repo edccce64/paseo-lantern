@@ -1,11 +1,12 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { openExternalUrl, useRpc } from "@getpaseo/plugin/client";
-import { Markdown, useToast } from "@getpaseo/plugin/client/ui";
+import { openExternalUrl, usePaseo, useRpc } from "@getpaseo/plugin/client";
+import { Markdown, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { type ArticleVersion, articleRpc } from "../shared/article";
 import type { FeedItem } from "../shared/feed";
+import { buildCompanionPrompt } from "./companion";
 
 const VERSION_LABELS: Array<{ id: ArticleVersion; title: string }> = [
   { id: "original", title: "原文" },
@@ -32,8 +33,18 @@ type Props = {
 
 export function ArticleView({ item, theme, layout, onBack }: Props) {
   const toast = useToast();
+  const paseo = usePaseo();
   const article = useRpc(articleRpc);
   const [version, setVersion] = useState<ArticleVersion>("original");
+  const [companion, setCompanion] = useState({
+    open: false,
+    prompt: "",
+    agentId: null as string | null,
+    agentTitle: null as string | null,
+    loading: false,
+    sending: false,
+    error: null as string | null,
+  });
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";
   const needsFetch = isQiaomu || isRss;
@@ -121,8 +132,91 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         backgroundColor: theme.colors.accent,
       },
       primaryText: { color: theme.colors.accentForeground, fontSize: 15 },
+      ghost: {
+        minHeight: 44,
+        paddingHorizontal: 18,
+        justifyContent: "center" as const,
+        alignItems: "center" as const,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      },
+      ghostText: { color: theme.colors.foreground, fontSize: 15 },
+      dialog: { gap: 12 },
+      target: { color: theme.colors.foreground, fontSize: 14, lineHeight: 20 },
+      targetName: { color: theme.colors.foreground, fontSize: 15, fontWeight: "600" as const },
+      preview: {
+        maxHeight: 220,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        borderRadius: 10,
+        padding: 12,
+      },
+      previewText: {
+        color: theme.colors.foregroundMuted,
+        fontSize: 12,
+        lineHeight: 18,
+      },
+      dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const },
     };
   }, [theme, layout.compact]);
+
+  async function openCompanion() {
+    const prompt = buildCompanionPrompt(item, markdown ?? null);
+    setCompanion({
+      open: true,
+      prompt,
+      agentId: null,
+      agentTitle: null,
+      loading: true,
+      sending: false,
+      error: null,
+    });
+    try {
+      const result = await paseo.agents.list({
+        scope: "active",
+        sort: [{ key: "updated_at", direction: "desc" }],
+        page: { limit: 5 },
+      });
+      const first = result.entries[0];
+      if (!first) {
+        setCompanion((state) => ({
+          ...state,
+          loading: false,
+          error: "没有可用的 agent。先在工作区里开一个，再回来点陪读。",
+        }));
+        return;
+      }
+      setCompanion((state) => ({
+        ...state,
+        loading: false,
+        agentId: first.agent.id,
+        agentTitle: first.agent.title ?? "未命名 agent",
+      }));
+    } catch (error) {
+      setCompanion((state) => ({
+        ...state,
+        loading: false,
+        error: error instanceof Error ? error.message : "找不到可用的 agent",
+      }));
+    }
+  }
+
+  async function sendCompanion() {
+    if (!companion.agentId) return;
+    setCompanion((state) => ({ ...state, sending: true, error: null }));
+    try {
+      await paseo.agents.ref(companion.agentId).send(companion.prompt);
+      toast.show(`已发给 ${companion.agentTitle ?? "agent"}`, { variant: "success" });
+      setCompanion((state) => ({ ...state, open: false, sending: false }));
+    } catch (error) {
+      setCompanion((state) => ({
+        ...state,
+        sending: false,
+        error: error instanceof Error ? error.message : "发送失败",
+      }));
+    }
+  }
 
   const result = needsFetch ? query.data : null;
   const versions = result?.versions ?? { original: true, translation: false, rewrite: false };
@@ -207,15 +301,68 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       <View style={styles.bottom}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="陪读"
+          onPress={() => void openCompanion()}
+          style={styles.primary}
+        >
+          <Text style={styles.primaryText}>陪读</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="打开原文"
           onPress={() => {
             void openExternalUrl(item.url).catch(() => toast.error("打不开这个链接"));
           }}
-          style={styles.primary}
+          style={styles.ghost}
         >
-          <Text style={styles.primaryText}>打开原文</Text>
+          <Text style={styles.ghostText}>原文</Text>
         </Pressable>
       </View>
+
+      <Modal
+        title="陪读"
+        open={companion.open}
+        onOpenChange={(open) => setCompanion((state) => ({ ...state, open }))}
+      >
+        <Modal.Content contentContainerStyle={{ padding: 16 }}>
+          <View style={styles.dialog}>
+            <View style={{ gap: 4 }}>
+              <Text style={styles.target}>目标 agent</Text>
+              <Text style={styles.targetName}>
+                {companion.loading ? "正在找…" : (companion.agentTitle ?? "没找到")}
+              </Text>
+            </View>
+
+            <ScrollView style={styles.preview}>
+              <Text style={styles.previewText}>{companion.prompt}</Text>
+            </ScrollView>
+
+            {companion.error ? <Text style={styles.note}>{companion.error}</Text> : null}
+
+            <View style={styles.dialogActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="取消陪读"
+                onPress={() => setCompanion((state) => ({ ...state, open: false }))}
+                style={styles.ghost}
+              >
+                <Text style={styles.ghostText}>取消</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="发送给这个 agent"
+                disabled={!companion.agentId || companion.sending}
+                onPress={() => void sendCompanion()}
+                style={[styles.primary, { flex: 0, paddingHorizontal: 20 }]}
+              >
+                <Text style={styles.primaryText}>
+                  {companion.sending ? "发送中" : "发送"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal.Content>
+      </Modal>
     </View>
   );
 }

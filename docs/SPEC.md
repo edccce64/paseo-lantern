@@ -212,7 +212,14 @@ import { Markdown } from "@getpaseo/plugin/client/ui";
 const agents = useAgents({ where: (a) => a.workspace.key === workspaceKey, orderBy: ["lastActivityAt", "desc"] });
 ```
 
-### 11.2 动作
+### 11.2 动作（v1 实现说明）
+
+0.15.4 没有 composer 写入接口，`useComposers` 只在 0.16 beta。
+所以 v1 是：弹窗预览 + 确认后 `agent.send()` 直接发送。
+
+0.16 正式版后可切成 `insertText` + `focus()`，弹窗保留。
+
+### 11.2 原计划动作
 
 ```ts
 // 组件内

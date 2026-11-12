@@ -4,6 +4,6 @@ import { LanternScreen } from "./client/screen";
 
 export default function contribute(client: PluginClientContext) {
   client.addScreen({ id: "lantern", title: "提灯", Component: LanternScreen });
-  client.addSidebarFooterItem({ id: "lantern", title: "提灯", Component: LanternItem });
+  client.addSidebarHeaderItem({ id: "lantern", title: "提灯", Component: LanternItem });
   return () => {};
 }

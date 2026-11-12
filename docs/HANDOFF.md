@@ -1,7 +1,7 @@
 # HANDOFF · paseo-lantern（提灯）
 
-最后更新：2026-11-12 18:25
-当前版本：P4 完成。代码 2220 行，8 次提交。
+最后更新：2026-11-12 22:40
+当前版本：P4 完成，EDC 改写服务端已验证、界面未实测。
 
 ---
 
@@ -48,15 +48,16 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
 | 陪读：弹窗确认后发给最近活跃 agent | 已完成（已实测发送） |
+| EDC 改写：「我的订阅」英文正文交给 agent 写成中文稿 | 部分完成（服务端已验证，界面未实测） |
 
 ## 4. 还没做
 
 | 项 | 原计划 | 说明 |
 | --- | --- | --- |
-| P5 生成中文版 | 乔木没有译文时，点按钮让 agent 生成，落成本地文件 | 未开始 |
 | P6 已读 / 收藏 / 跨设备同步 | 存 host settings | 未开始 |
 | P6 桌面工作区分屏面板 | `addWorkspacePanel`，和 agent 左右并排 | 未开始 |
 | P7 打磨 | 缓存淘汰上限、错误态、限流文案 | 未开始 |
+| 乔木侧生成中文版 | 原 P5 | 取消。乔木 9 篇样本 7 篇有改写，译文 9/9 返回 unavailable，乔木自己能给的够用 |
 | Composer pill | agent 输入栏常驻按钮 | 被 0.16 卡住，见第 8 节 |
 | 正文写进输入框（不直接发） | 用 `insertText` + `focus()` | 同上 |
 
@@ -72,6 +73,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `client/article.tsx` | 368 | 正文视图：返回、标题、版本 chips、Markdown、底部「陪读 / 原文」、陪读确认弹窗 |
 | `client/subs-panel.tsx` | 250 | 订阅管理弹窗：列表、加源、删源、导入导出 OPML |
 | `client/companion.ts` | 43 | 陪读提示词拼装 |
+| `client/rewrite.ts` | 43 | EDC 改写提示词拼装（要求写进文件） |
 | `client/item.tsx` | 13 | 侧边栏行，图标 `Lamp` |
 
 服务端（跑在 daemon 子进程里）：
@@ -85,6 +87,9 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `server/qiaomu-article.ts` | 乔木正文与版本 |
 | `server/page-article.ts` | 订阅条目正文抽取 |
 | `server/text/markdown.ts` | HTML→Markdown、Readability 兜底 |
+| `server/text/lang.ts` | 判定正文是否以英文为主（CJK 占比 < 5%） |
+| `server/rewrite.ts` | EDC 改写的两个 RPC：写源文件、查产物 |
+| `server/rewrite-files.ts` | `rewrites/` 路径、短哈希文件名、产物读写与完成判定 |
 | `server/sources/aihot.ts` | AIHOT 两个接口 |
 | `server/sources/qiaomu.ts` | 乔木列表与源名映射 |
 | `server/sources/http.ts` | 15 秒超时、ETag、429 处理、JSON 与文本两种 |
@@ -97,12 +102,19 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `shared/feed.ts` | 四个频道、条目 schema、四态取数、`lantern.list` |
 | `shared/article.ts` | `lantern.article` |
 | `shared/subs.ts` | 六个订阅 RPC |
+| `shared/rewrite.ts` | `lantern.rewrite.request`、`lantern.rewrite.status` |
 | `shared/ping.ts` | `lantern.ping` 自检 |
 
 入口：
 
 - `index.client.tsx`：注册屏幕 `lantern` + 侧边栏头部行。
-- `index.server.ts`：注册 9 个 RPC。
+- `index.server.ts`：注册 11 个 RPC。
+
+自检工具（不进构建）：
+
+- `test-harness.ts` + `tsconfig.test.json` + `scripts/verify-rewrite.mjs`。
+- `npm run verify:rewrite` 编译成 `.test-build/` 后跑一遍 EDC 改写链路：写源文件 → 模拟 agent 写产物 → 轮询状态 → 正文页读本地稿。
+- `tsconfig.test.json` 用 `noCheck`，只求产物。类型检查仍用 `npm run typecheck`。
 
 ---
 
@@ -214,25 +226,39 @@ AIHOT（匿名只读）：
 
 ---
 
+## 11.6 EDC 改写为什么不做在乔木侧（2026-11-12 晚）
+
+用户判断是对的，已用本机缓存核实：
+
+- 乔木 9 篇样本里 7 篇有 `rewrite.body`，2800–7200 字。
+- 9 篇的 `translation` 全部 `unavailable`。
+
+所以乔木侧不需要 P5。改写需求改到「我的订阅」：那里的英文文章没有任何中文版。
+
+界面名定「EDC 改写」，位置在正文页底部，只在三个条件同时成立时出现：
+
+1. 条目来自「我的订阅」。
+2. 正文是英文（CJK 占（CJK + 拉丁）不到 5%，且拉丁字母 ≥ 300）。
+3. 本地产物还不存在。
+
 ## 12. 下次开工建议
 
-先做 P5（生成中文版），因为它和陪读共用 agent 通道，做完这一块闭环了。
+先实测 EDC 改写的界面（见第 14 节第 12–15 条），再用真 agent 跑一篇，确认 agent 真的会把文件写出来。
 
-P5 步骤：
+实测通过后做 P6 已读 / 收藏：
 
-1. 新建 `shared/rewrite.ts`：`lantern.rewrite.request { id, title }`。
-2. 服务端把正文写到 `%USERPROFILE%\.paseo\data\paseo-lantern\rewrites\<id>.src.md`。
-3. 客户端调 `paseo.agents.ref(id).send(...)`，提示词里给源文件路径和输出路径。
-4. 服务端 `fs.watch` 监听 `rewrites/`，出现 `<id>.md` 就置为可用。
-5. 正文页加「生成中文版」按钮，只在译文和改写都缺时显示。
+1. `shared/state.ts`：`lantern.state.get` / `lantern.state.set`。
+2. 存 host settings，`scope: "host"`，键名 `read`、`star`。
+3. 列表行加左边未读小点，正文页底部加收藏。
 
-已知风险：agent 可能只回聊天不改文件。备选方案是读 agent 的 timeline（未验证能否读）。
+如果 agent 不写文件：备选是读 agent 的 timeline（未验证能否读）。
 
 ---
 
 ## 13. 提交记录
 
 ```
+cd9592e docs: mark companion delivery as verified
 9d3a9cc docs: record P4 status and the composer API limitation
 4940cba feat: P4 companion send with confirmation dialog
 622fde1 docs: record P3 status and verification
@@ -254,9 +280,14 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 3. 切到乔木精选，标题是中文。
 4. 点开一篇，正文能读，图片能显示。
 5. 点「乔木改写」，有则显示中文稿。
-6. 切到「我的订阅」，能看到少数派和阮一峰的条目。
+6. 切到「我的订阅」，能看到少数派、阮一峰和 TechCrunch AI 的条目。
 7. 点「订阅管理」，弹窗在手机上从底部升起。
 8. 回列表点「刷新」，状态行时间变化。
 9. 打开一篇文章点「陪读」，弹窗显示 agent 名和提示词。
 10. 点「发送」，那个 agent 收到消息。（已验证 2026-11-12 18:20）
 11. 深色模式下文字颜色正常。
+12. 打开一篇 TechCrunch 英文文章，底部有「EDC 改写」。（未验证）
+13. 点它，弹窗里能看到源文件路径和产物路径。（未验证）
+14. 点「发送」，正文页出现「正在等 agent 写出中文稿」。（未验证）
+15. 等 agent 写完，出现「原文 / EDC 改写」两个 chip，自动切到中文稿。（未验证）
+16. 关掉页面再打开同篇，chip 还在，中文稿能直接读。（未验证）

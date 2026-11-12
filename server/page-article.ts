@@ -1,5 +1,7 @@
-import type { ArticleResult } from "../shared/article";
+import type { ArticleResult, ArticleVersion } from "../shared/article";
 import { readCache, writeCache } from "./cache";
+import { readLocalRewrite } from "./rewrite-files";
+import { isMostlyEnglish } from "./text/lang";
 import { extractFromPage } from "./text/markdown";
 
 const BODY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -40,26 +42,46 @@ export async function fetchPageArticle(input: {
   origin: string;
   publishedAt: string;
   summary: string | null;
+  version?: ArticleVersion;
 }): Promise<ArticleResult> {
   const key = keyFor(input.url);
   const cached = await readCache<TextCache>(key);
+
+  let body: string | null = null;
+  if (cached && Date.now() - cached.fetchedAt < BODY_TTL_MS && cached.data.markdown) {
+    body = cached.data.markdown;
+  } else {
+    body = await loadPage(input.url);
+    if (body) {
+      await writeCache(key, { data: { markdown: body }, etag: null, fetchedAt: Date.now() });
+    }
+  }
+
+  const localRewrite = await readLocalRewrite(input.id);
   const base = {
     title: input.title,
     origin: input.origin,
     publishedAt: input.publishedAt,
     url: input.url,
     summary: input.summary,
-    versions: { original: true, translation: false, rewrite: false },
+    versions: { original: true, translation: false, rewrite: false, local: localRewrite !== null },
+    looksEnglish: body ? isMostlyEnglish(body) : false,
   };
 
-  if (cached && Date.now() - cached.fetchedAt < BODY_TTL_MS && cached.data.markdown) {
-    return { ...base, markdown: cached.data.markdown, bodyState: "full", note: null };
+  if (input.version === "local") {
+    if (localRewrite) {
+      return { ...base, markdown: localRewrite, bodyState: "full", note: null };
+    }
+    return {
+      ...base,
+      markdown: body ?? input.summary,
+      bodyState: body ? "full" : input.summary ? "summary" : "unavailable",
+      note: "本地中文稿不在了，可以再生成一次。",
+    };
   }
 
-  const markdown = await loadPage(input.url);
-  if (markdown) {
-    await writeCache(key, { data: { markdown }, etag: null, fetchedAt: Date.now() });
-    return { ...base, markdown, bodyState: "full", note: null };
+  if (body) {
+    return { ...base, markdown: body, bodyState: "full", note: null };
   }
 
   return {

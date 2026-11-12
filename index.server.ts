@@ -10,9 +10,11 @@ import {
   removeSubscription,
   renameSubscription,
 } from "./server/subs-rpc";
+import { requestRewrite, statusRewrite } from "./server/rewrite";
 import { articleRpc } from "./shared/article";
 import { listRpc } from "./shared/feed";
 import { pingRpc } from "./shared/ping";
+import { rewriteRequestRpc, rewriteStatusRpc } from "./shared/rewrite";
 import {
   subsAddRpc,
   subsExportRpc,
@@ -26,6 +28,8 @@ export default function contribute(server: PluginServerContext) {
   server.handle(pingRpc, checkPing);
   server.handle(listRpc, listFeed);
   server.handle(articleRpc, getArticle);
+  server.handle(rewriteRequestRpc, requestRewrite);
+  server.handle(rewriteStatusRpc, statusRewrite);
   server.handle(subsListRpc, listSubs);
   server.handle(subsAddRpc, addSubscription);
   server.handle(subsRemoveRpc, removeSubscription);

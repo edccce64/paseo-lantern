@@ -21,6 +21,7 @@ export async function getArticle({
       origin: origin ?? "订阅",
       publishedAt: publishedAt ?? new Date().toISOString(),
       summary: summary ?? null,
+      version: version ?? "original",
     });
   }
   return fetchQiaomuArticle(id, version ?? "original");

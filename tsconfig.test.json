@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noCheck": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "outDir": ".test-build",
+    "rootDir": ".",
+    "noEmit": false
+  },
+  "include": ["server/**/*.ts", "shared/**/*.ts", "test-harness.ts"]
+}

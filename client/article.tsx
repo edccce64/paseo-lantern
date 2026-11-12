@@ -1,12 +1,14 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { openExternalUrl, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { Markdown, Modal, useToast } from "@getpaseo/plugin/client/ui";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { type ArticleVersion, articleRpc } from "../shared/article";
 import type { FeedItem } from "../shared/feed";
+import { rewriteRequestRpc, rewriteStatusRpc } from "../shared/rewrite";
 import { buildCompanionPrompt } from "./companion";
+import { buildRewritePrompt } from "./rewrite";
 
 const VERSION_LABELS: Array<{ id: ArticleVersion; title: string }> = [
   { id: "original", title: "原文" },
@@ -35,6 +37,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const toast = useToast();
   const paseo = usePaseo();
   const article = useRpc(articleRpc);
+  const queryClient = useQueryClient();
+  const rewriteRequest = useRpc(rewriteRequestRpc);
+  const rewriteStatus = useRpc(rewriteStatusRpc);
   const [version, setVersion] = useState<ArticleVersion>("original");
   const [companion, setCompanion] = useState({
     open: false,
@@ -45,6 +50,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     sending: false,
     error: null as string | null,
   });
+  const [rewrite, setRewrite] = useState({
+    open: false,
+    prompt: "",
+    agentId: null as string | null,
+    agentTitle: null as string | null,
+    busy: false,
+    error: null as string | null,
+  });
+  const [awaiting, setAwaiting] = useState(false);
+  const [sentAt, setSentAt] = useState(0);
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";
   const needsFetch = isQiaomu || isRss;
@@ -60,12 +75,30 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
             origin: item.origin,
             publishedAt: item.publishedAt,
             summary: item.summary,
+            version,
           })
         : article({ id: item.id, version }),
     enabled: needsFetch,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
+
+  /** EDC 改写：等 agent 写出文件，每 5 秒看一次 */
+  const statusQuery = useQuery({
+    queryKey: ["lantern-rewrite-status", item.id],
+    queryFn: () => rewriteStatus({ id: item.id }),
+    enabled: isRss && awaiting,
+    refetchInterval: awaiting ? 5000 : false,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (statusQuery.data?.state !== "ready") return;
+    setAwaiting(false);
+    setVersion("local");
+    toast.show("中文稿好了", { variant: "success" });
+    void queryClient.invalidateQueries({ queryKey: ["lantern-article"] });
+  }, [statusQuery.data, queryClient, toast]);
 
   const styles = useMemo(() => {
     const horizontal = layout.compact ? 16 : 28;
@@ -218,8 +251,88 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     }
   }
 
+  async function openRewrite() {
+    setRewrite({
+      open: true,
+      prompt: "",
+      agentId: null,
+      agentTitle: null,
+      busy: true,
+      error: null,
+    });
+    try {
+      const prepared = await rewriteRequest({
+        id: item.id,
+        url: item.url,
+        title: item.title,
+        origin: item.origin,
+        publishedAt: item.publishedAt,
+        summary: item.summary,
+      });
+      const prompt = buildRewritePrompt({
+        title: item.title,
+        origin: item.origin,
+        url: item.url,
+        srcPath: prepared.srcPath,
+        outPath: prepared.outPath,
+        chars: prepared.chars,
+      });
+      setRewrite((state) => ({ ...state, prompt }));
+
+      const result = await paseo.agents.list({
+        scope: "active",
+        sort: [{ key: "updated_at", direction: "desc" }],
+        page: { limit: 5 },
+      });
+      const first = result.entries[0];
+      if (!first) {
+        setRewrite((state) => ({
+          ...state,
+          busy: false,
+          error: "没有可用的 agent。先在工作区里开一个，再回来点。",
+        }));
+        return;
+      }
+      setRewrite((state) => ({
+        ...state,
+        busy: false,
+        agentId: first.agent.id,
+        agentTitle: first.agent.title ?? "未命名 agent",
+      }));
+    } catch (error) {
+      setRewrite((state) => ({
+        ...state,
+        busy: false,
+        error: error instanceof Error ? error.message : "准备源文件失败",
+      }));
+    }
+  }
+
+  async function sendRewrite() {
+    if (!rewrite.agentId || !rewrite.prompt) return;
+    setRewrite((state) => ({ ...state, busy: true, error: null }));
+    try {
+      await paseo.agents.ref(rewrite.agentId).send(rewrite.prompt);
+      setRewrite((state) => ({ ...state, open: false, busy: false }));
+      setSentAt(Date.now());
+      setAwaiting(true);
+      toast.show("已把源文件发给 agent，等它写出中文稿", { variant: "success" });
+    } catch (error) {
+      setRewrite((state) => ({
+        ...state,
+        busy: false,
+        error: error instanceof Error ? error.message : "发送失败",
+      }));
+    }
+  }
+
   const result = needsFetch ? query.data : null;
-  const versions = result?.versions ?? { original: true, translation: false, rewrite: false };
+  const versions = result?.versions ?? {
+    original: true,
+    translation: false,
+    rewrite: false,
+    local: false,
+  };
   const loading = needsFetch && query.isPending;
   const error = needsFetch ? query.error : null;
   const markdown = needsFetch ? (result?.markdown ?? null) : item.summary;
@@ -228,6 +341,25 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     : "AIHOT 不提供单篇正文，摘要如下。";
   const publishedAt = result?.publishedAt ?? item.publishedAt;
   const origin = item.origin || result?.origin || "订阅";
+
+  const chips: Array<{ id: ArticleVersion; title: string }> = isQiaomu
+    ? VERSION_LABELS
+    : isRss && versions.local
+      ? [
+          { id: "original", title: "原文" },
+          { id: "local", title: "EDC 改写" },
+        ]
+      : [];
+
+  function availableVersion(id: ArticleVersion): boolean {
+    if (id === "original") return versions.original;
+    if (id === "translation") return versions.translation;
+    if (id === "rewrite") return versions.rewrite;
+    return versions.local;
+  }
+
+  const canRewrite = isRss && !awaiting && (result?.looksEnglish ?? false) && !versions.local;
+  const waitedSec = sentAt ? Math.floor((Date.now() - sentAt) / 1000) : 0;
 
   return (
     <View style={styles.screen}>
@@ -248,15 +380,10 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           {origin} · {formatWhen(publishedAt)}
         </Text>
 
-        {isQiaomu ? (
+        {chips.length > 0 ? (
           <View style={styles.versions}>
-            {VERSION_LABELS.map((entry) => {
-              const available =
-                entry.id === "original"
-                  ? versions.original
-                  : entry.id === "translation"
-                    ? versions.translation
-                    : versions.rewrite;
+            {chips.map((entry) => {
+              const available = availableVersion(entry.id);
               const active = entry.id === version;
               return (
                 <Pressable
@@ -294,6 +421,25 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
         {note && !loading ? <Text style={styles.note}>{note}</Text> : null}
 
+        {awaiting ? (
+          <View style={{ gap: 6 }}>
+            <Text style={styles.note}>正在等 agent 写出中文稿…已等 {waitedSec} 秒</Text>
+            {waitedSec > 120 ? (
+              <Text style={styles.note}>
+                还没看到结果。agent 可能只回了聊天，没写文件。可以再点一次「EDC 改写」。
+              </Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="停止等待"
+              onPress={() => setAwaiting(false)}
+              style={styles.chip}
+            >
+              <Text style={styles.chipText}>停止等待</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {markdown && !loading ? <Markdown>{markdown}</Markdown> : null}
         {!markdown && !loading && !error ? <Text style={styles.note}>这篇没有可显示的正文。</Text> : null}
       </ScrollView>
@@ -307,6 +453,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         >
           <Text style={styles.primaryText}>陪读</Text>
         </Pressable>
+        {canRewrite ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="EDC 改写"
+            onPress={() => void openRewrite()}
+            style={styles.primary}
+          >
+            <Text style={styles.primaryText}>EDC 改写</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="打开原文"
@@ -357,6 +513,55 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
               >
                 <Text style={styles.primaryText}>
                   {companion.sending ? "发送中" : "发送"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal.Content>
+      </Modal>
+
+      <Modal
+        title="EDC 改写"
+        open={rewrite.open}
+        onOpenChange={(open) => setRewrite((state) => ({ ...state, open }))}
+      >
+        <Modal.Content contentContainerStyle={{ padding: 16 }}>
+          <View style={styles.dialog}>
+            <View style={{ gap: 4 }}>
+              <Text style={styles.target}>目标 agent</Text>
+              <Text style={styles.targetName}>
+                {rewrite.busy && !rewrite.agentId
+                  ? "正在准备…"
+                  : (rewrite.agentTitle ?? "没找到")}
+              </Text>
+            </View>
+
+            <ScrollView style={styles.preview}>
+              <Text style={styles.previewText}>
+                {rewrite.prompt || "正在把正文写成源文件…"}
+              </Text>
+            </ScrollView>
+
+            {rewrite.error ? <Text style={styles.note}>{rewrite.error}</Text> : null}
+
+            <View style={styles.dialogActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="取消改写"
+                onPress={() => setRewrite((state) => ({ ...state, open: false }))}
+                style={styles.ghost}
+              >
+                <Text style={styles.ghostText}>取消</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="发送改写任务给这个 agent"
+                disabled={!rewrite.agentId || !rewrite.prompt || rewrite.busy}
+                onPress={() => void sendRewrite()}
+                style={[styles.primary, { flex: 0, paddingHorizontal: 20 }]}
+              >
+                <Text style={styles.primaryText}>
+                  {rewrite.busy && rewrite.agentId ? "发送中" : "发送"}
                 </Text>
               </Pressable>
             </View>

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Subscription } from "../shared/subs";
 import { CACHE_DIR } from "./cache";
+import { rateLimitMessage } from "./errors";
 import { buildOpml, parseOpml } from "./feeds/parse";
 import { getText } from "./sources/http";
 import { parseFeed } from "./feeds/parse";
@@ -45,7 +46,15 @@ export async function addSub(rawUrl: string, title?: string): Promise<Subscripti
   let resolvedTitle = title?.trim() ?? "";
   if (!resolvedTitle) {
     const response = await getText(url, null);
-    if (response.kind !== "ok") throw new Error("拿不到这个地址的内容");
+    if (response.kind !== "ok") {
+      throw new Error(
+        response.kind === "rate-limited"
+          ? rateLimitMessage(response.retryAfterMs)
+          : response.kind === "not-modified"
+            ? "这个地址没返回内容"
+            : "拿不到这个地址的内容",
+      );
+    }
     resolvedTitle = parseFeed(response.text).title;
   }
 

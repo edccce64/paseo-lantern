@@ -1,5 +1,6 @@
 import type { FeedItem, FeedState } from "../../shared/feed";
 import { readCache, writeCache } from "../cache";
+import { rateLimitMessage } from "../errors";
 import { getJson } from "./http";
 
 const TTL_MS = 10 * 60 * 1000;
@@ -87,7 +88,7 @@ export async function fetchAihot(
         return { items: cached.data, fetchedAt, state: "revalidated" };
       }
       if (response.kind === "rate-limited") {
-        throw new Error(`AIHOT 限流，约 ${Math.round(response.retryAfterMs / 1000)} 秒后再试`);
+        throw new Error(rateLimitMessage(response.retryAfterMs));
       }
       if (response.kind !== "ok") throw new Error("AIHOT 返回了未知响应");
       const items = (response.data.items ?? []).map(toSelectedItem);
@@ -103,7 +104,7 @@ export async function fetchAihot(
       return { items: cached.data, fetchedAt, state: "revalidated" };
     }
     if (response.kind === "rate-limited") {
-      throw new Error(`AIHOT 限流，约 ${Math.round(response.retryAfterMs / 1000)} 秒后再试`);
+      throw new Error(rateLimitMessage(response.retryAfterMs));
     }
     if (response.kind !== "ok") throw new Error("AIHOT 返回了未知响应");
     const items = (response.data.items ?? []).map(toHotItem);

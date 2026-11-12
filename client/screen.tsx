@@ -277,6 +277,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         </View>
       </View>
 
+      {!isStarChannel && query.data?.state === "stale" ? (
+        <Text style={[styles.status, { paddingHorizontal: (layout.compact ? 16 : 24) }]}>
+          有源抓取失败，现在显示的是上次缓存
+        </Text>
+      ) : null}
+
       {isPending ? (
         <View style={styles.state}>
           <Text style={styles.stateText}>正在载入</Text>

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { ArticleResult, ArticleVersion } from "../shared/article";
-import { readCache, writeCache } from "./cache";
+import { prunePageCache, readCache, writeCache } from "./cache";
 import { isMostlyEnglish } from "./text/lang";
 import { extractFromPage } from "./text/markdown";
 import { readTranslation } from "./translate-store";
@@ -57,6 +57,8 @@ export async function fetchPageArticle(input: {
     body = await loadPage(input.url);
     if (body) {
       await writeCache(key, { data: { markdown: body }, etag: null, fetchedAt: Date.now() });
+      // 写之后顺手清一次（内部限流，一小时最多一次）
+      void prunePageCache();
     }
   }
 

@@ -2,12 +2,13 @@ import type { FeedItem, FeedState } from "../shared/feed";
 import type { Subscription } from "../shared/subs";
 import { readCache, writeCache } from "./cache";
 import { parseFeed } from "./feeds/parse";
+import { describeFetchError, rateLimitMessage } from "./errors";
 import { getText } from "./sources/http";
 import { readSubs } from "./subs";
 
 const REFRESH_MS = 15 * 60 * 1000;
 const MAX_ITEMS = 200;
-const CONCURRENCY = 3;
+const CONCURRENCY = 5;
 
 export type MineResult = {
   items: FeedItem[];
@@ -37,7 +38,7 @@ async function refreshOne(sub: Subscription, force: boolean): Promise<SourceStat
       return { items: cached.data, fetchedAt, state: "revalidated" };
     }
     if (response.kind === "rate-limited") {
-      throw new Error("这个源限流了");
+      throw new Error(rateLimitMessage(response.retryAfterMs));
     }
     if (response.kind !== "ok") throw new Error("源返回异常");
 
@@ -57,7 +58,7 @@ async function refreshOne(sub: Subscription, force: boolean): Promise<SourceStat
     await writeCache(key, { data: items, etag: response.etag, fetchedAt });
     return { items, fetchedAt, state: items.length > 0 ? "live" : "revalidated" };
   } catch (error) {
-    console.warn(`[lantern] feed failed: ${sub.title}`, error);
+    console.warn(`[lantern] feed failed: ${sub.title}`, describeFetchError(error, sub.title));
     if (cached) return { items: cached.data, fetchedAt: cached.fetchedAt, state: "stale" };
     return { items: [], fetchedAt: Date.now(), state: "stale" };
   }

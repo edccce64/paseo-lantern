@@ -58,7 +58,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 
 | 项 | 原计划 | 说明 |
 | --- | --- | --- |
-| P7 打磨 | 缓存淘汰上限、错误态、限流文案 | 未开始 |
+| 打磨 | 缓存淘汰、错误文案、抓取并发 | 部分完成（服务端已验证，界面未实测） |
 | 乔木侧生成中文版 | 原 P5 | 取消。乔木 9 篇样本 7 篇有改写，译文 9/9 返回 unavailable，乔木自己能给的够用 |
 | Composer pill | agent 输入栏常驻按钮 | 被 0.16 卡住，见第 8 节 |
 | 正文写进输入框（不直接发） | 用 `insertText` + `focus()` | 同上 |
@@ -90,6 +90,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `server/page-article.ts` | 订阅条目正文抽取 |
 | `server/text/markdown.ts` | HTML→Markdown、Readability 兜底 |
 | `server/text/lang.ts` | 判定正文是否以英文为主（CJK 占比 < 5%） |
+| `server/errors.ts` | 限流/超时/断网/对方报错的统一文案 |
 | `server/translate.ts` | 译文：分段调 DeepSeek，后台任务 + 进度，写缓存 |
 | `server/translate-store.ts` | `translations/` 路径、短哈希文件名、译文读写 |
 | `server/sources/aihot.ts` | AIHOT 两个接口 |
@@ -289,6 +290,17 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 - 已核对桌面 app 的 bundle 里存在 `addWorkspacePanel`（`app-dist/_expo/static/js/web/index-*.js`）。
 - 入口：工作区里的 Command Center 搜「打开提灯面板」（0.15.4 的 Command Center 快捷键未确认，可能不是 Ctrl+K）。
 - 注意：面板不会自动出现在标签栏，必须先用 Command Center 触发一次 openPanel("lantern") 才会出现。
+
+## 11.11 打磨（2026-11-13 02:40）
+
+四项：
+
+1. **正文缓存淘汰**：`server/cache.ts` 的 `prunePageCache()`。只动 `page-*.json`，上限 100 篇、最长 30 天，一小时最多扫一次（写完正文缓存后触发）。
+2. **错误文案统一**：`server/errors.ts`。限流说「对方限流了，约 N 秒后再试」；超时说「超时了，网络慢或对方没响应」；断网说「连不上 X，检查网络」；对方报错按状态码分 401/403、404、4xx、5xx。
+3. **抓取并发**：`server/mine.ts` 的 `CONCURRENCY` 从 3 提到 5。
+4. **界面提示**：收藏/取消收藏有 toast；列表处于 `stale` 时多一行「有源抓取失败，现在显示的是上次缓存」。
+
+验证：淘汰逻辑用造数据实测（110 篇 → 留 100，删最旧 10；非 `page-` 文件不动；超 30 天的假数据全删）。错误文案逐条实测输出。界面部分未实测。
 
 ## 12. 下次开工建议
 

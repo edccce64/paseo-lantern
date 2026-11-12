@@ -1,4 +1,5 @@
 import type { ArticleResult, ArticleVersion } from "../shared/article";
+import { rateLimitMessage } from "./errors";
 import { readCache, writeCache } from "./cache";
 import { getJson } from "./sources/http";
 import { sourceNames } from "./sources/qiaomu";
@@ -47,7 +48,11 @@ async function loadEntry(id: string): Promise<EntryResponse> {
   }
   if (response.kind === "not-modified" && cached) return cached.data;
   if (cached) return cached.data;
-  throw new Error(response.kind === "rate-limited" ? "乔木服务限流，稍后再试" : "乔木服务返回异常");
+  throw new Error(
+    response.kind === "rate-limited"
+      ? rateLimitMessage(response.retryAfterMs)
+      : "乔木服务返回异常，稍后再试",
+  );
 }
 
 async function loadTranslation(id: string): Promise<TranslationResponse> {

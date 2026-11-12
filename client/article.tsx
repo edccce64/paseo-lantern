@@ -65,7 +65,13 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       : [item, ...settings.values.star];
     void settings
       .save({ ...settings.values, star: next }, settings.revision)
-      .then((ok) => (ok ? undefined : settings.reload()));
+      .then((ok) => {
+        if (!ok) {
+          toast.error("没存上，再点一次");
+          return settings.reload();
+        }
+        toast.show(starred ? "已取消收藏" : "已收藏", { variant: "success" });
+      });
   }
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";

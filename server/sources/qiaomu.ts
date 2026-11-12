@@ -1,5 +1,6 @@
 import type { FeedItem, FeedState } from "../../shared/feed";
 import { readCache, writeCache } from "../cache";
+import { rateLimitMessage } from "../errors";
 import { getJson } from "./http";
 
 const TTL_MS = 10 * 60 * 1000;
@@ -92,7 +93,7 @@ export async function fetchQiaomu(limit: number, force: boolean): Promise<Source
       return { items: cached.data, fetchedAt, state: "revalidated" };
     }
     if (response.kind === "rate-limited") {
-      throw new Error(`乔木服务限流，约 ${Math.round(response.retryAfterMs / 1000)} 秒后再试`);
+      throw new Error(rateLimitMessage(response.retryAfterMs));
     }
     if (response.kind !== "ok") throw new Error("乔木服务返回了未知响应");
     const names = await sourceNames();

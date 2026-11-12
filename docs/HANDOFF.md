@@ -50,12 +50,13 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
 | 陪读：弹窗确认后发给最近活跃 agent | 已完成（已实测发送） |
 | 译文：AIHOT 与「我的订阅」的英文正文点一下，服务端直连 DeepSeek 翻成中文 | 部分完成（服务端已验证，界面未实测） |
+| 已读：列表未读圆点，打开即标已读 | 部分完成（客户端未实测） |
+| 收藏：正文页底部按钮 + 顶部「收藏」频道 | 部分完成（客户端未实测） |
 
 ## 4. 还没做
 
 | 项 | 原计划 | 说明 |
 | --- | --- | --- |
-| P6 已读 / 收藏 / 跨设备同步 | 存 host settings | 未开始 |
 | P6 桌面工作区分屏面板 | `addWorkspacePanel`，和 agent 左右并排 | 未开始 |
 | P7 打磨 | 缓存淘汰上限、错误态、限流文案 | 未开始 |
 | 乔木侧生成中文版 | 原 P5 | 取消。乔木 9 篇样本 7 篇有改写，译文 9/9 返回 unavailable，乔木自己能给的够用 |
@@ -103,12 +104,13 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `shared/article.ts` | `lantern.article` |
 | `shared/subs.ts` | 六个订阅 RPC |
 | `shared/translate.ts` | `lantern.translate.request`、`lantern.translate.status` |
+| `shared/settings.ts` | host settings：`read`、`star`（`defineSettings`） |
 | `shared/ping.ts` | `lantern.ping` 自检 |
 
 入口：
 
 - `index.client.tsx`：注册屏幕 `lantern` + 侧边栏头部行。
-- `index.server.ts`：注册 11 个 RPC。
+- `index.server.ts`：注册 11 个 RPC，并 `registerSettings(lanternStateSettings)`。
 
 ---
 
@@ -133,6 +135,12 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 `key` / `<sha1>` 都是条目 id 或 url 的 sha1 前 16 位。
 
 旧编号的 `rewrites/` 目录不再使用（EDC 改写已取消）。
+
+已读与收藏不进这个目录：存在 host settings 里，文档 id `lantern-state`，`scope: "host"`，`version: 1`。
+
+- `read`：`${source}:${id}` 字符串数组，只留最后 500 条（`MAX_READ_ENTRIES`）。
+- `star`：整条 `FeedItem` 快照数组。「收藏」频道不联网也能渲染。
+- 读写走客户端 `useSettings()`；服务端只 `registerSettings` 声明 schema。保存用 revision 做乐观锁，冲突时重拉一次。
 
 取数四态（`shared/feed.ts`）：
 
@@ -215,6 +223,7 @@ AIHOT（匿名只读）：
 ## 11. 没验证过的
 
 - 「译文」的界面部分：chip 什么时候出现、进度文案、翻完后自动切版本、失败重试。服务端已实测（见 11.7），客户端未实测。
+- 已读与收藏：圆点是否消失、「收藏」频道是否即时出现、跨设备是否同步（host settings 应跟着 host 走，但没有第二台设备验证）。
 - iPhone 上的实际体验：列表、正文长文滚动、订阅弹窗（底部弹层）、陪读弹窗、译文 chip。
 - 真断网时的 `stale` 分支（从没断网测过）。
 - Readability 兜底分支（现有样本乔木都自带 `content`，没走到）。
@@ -260,23 +269,35 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 乔木继续用乔木自己的译文，不进这套。
 
+## 11.9 已读与收藏（2026-11-13 02:00）
+
+存 host settings，文档 id `lantern-state`，不用插件自己的磁盘目录。
+
+- 列表行左邊未读小圆点；点开就写进 `read`，圆点消失。
+- 正文页底部 `陪读 ｜ 收藏 ｜ 原文`；已收藏时按钮文字变「已收藏」，描边变强调色。
+- 顶部多了「收藏」频道。它是客户端伪频道，不调 `lantern.list`，直接用 `star` 里的 `FeedItem` 快照渲染。
+- `read` 只留最后 500 条；`star` 存整条快照，所以收藏的条目即使从原频道消失也还在。
+- 写入用 revision 乐观锁；返回 false（冲突）就 `reload()` 一次。
+
 ## 12. 下次开工建议
 
-先实测「译文」的界面（第 14 节第 12–15 条）。
+先实测已读与收藏的界面（第 14 节第 16–19 条），再实测「译文」chip（第 12–15 条）。
 
-实测通过后做 P6 已读 / 收藏：
+之后可做的两件事：
 
-1. `shared/state.ts`：`lantern.state.get` / `lantern.state.set`。
-2. 存 host settings，`scope: "host"`，键名 `read`、`star`。
-3. 列表行加左边未读小点，正文页底部加收藏。
+1. P6 桌面工作区分屏面板：`addWorkspacePanel`，和 agent 左右并排。
+2. P7 正文缓存加容量上限与淘汰（现在只按时间过期）。
 
-再往后：正文缓存加容量上限与淘汰（现在只按时间过期）。
+再加一层打磨：收藏支持取消时给个提示，列表支持下拉刷新之外的手势。
 
 ---
 
 ## 13. 提交记录
 
 ```
+fdd1d07 feat: offer translation chips for AIHOT articles
+c17583d fix: fetch article bodies for AIHOT items from the original page
+2a174c8 feat: translate english subscription articles in place
 9086a55 fix: stop page cache key collisions and decode html entities in feed titles
 5738bef feat: EDC rewrite for english articles in personal subscriptions
 cd9592e docs: mark companion delivery as verified
@@ -311,3 +332,7 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 13. 点「译文」，chip 变成「翻译 x/4」，不用跳任何页面。（未验证）
 14. 翻完后自动切到中文稿，chip 显示「译文」。（未验证）
 15. 关掉页面再打开同篇，直接点「译文」就能看，不再重新翻。（未验证）
+16. 未读条目左侧有小圆点，点开后返回列表，圆点消失。（未验证）
+17. 打开一篇文章点「收藏」，按钮变「已收藏」。（未验证）
+18. 回列表切到「收藏」频道，刚收藏那篇在最上面。（未验证）
+19. 重开 App，「收藏」频道内容还在。（验证 host settings 是否真的落下）

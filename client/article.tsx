@@ -1,11 +1,12 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { openExternalUrl, usePaseo, useRpc } from "@getpaseo/plugin/client";
+import { openExternalUrl, usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { Markdown, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { type ArticleVersion, articleRpc } from "../shared/article";
 import type { FeedItem } from "../shared/feed";
+import { EMPTY_STATE, itemKey, lanternStateSettings } from "../shared/settings";
 import { translateRequestRpc, translateStatusRpc } from "../shared/translate";
 import { buildCompanionPrompt } from "./companion";
 
@@ -37,6 +38,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const paseo = usePaseo();
   const article = useRpc(articleRpc);
   const queryClient = useQueryClient();
+  const settings = useSettings(lanternStateSettings);
   const translateRequest = useRpc(translateRequestRpc);
   const translateStatus = useRpc(translateStatusRpc);
   const [version, setVersion] = useState<ArticleVersion>("original");
@@ -52,6 +54,19 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const [translating, setTranslating] = useState(false);
   const [translateSteps, setTranslateSteps] = useState({ done: 0, total: 0 });
   const [translateError, setTranslateError] = useState("");
+  const lanternState = settings.status === "ready" ? settings.values : EMPTY_STATE;
+  const starKey = itemKey(item);
+  const starred = lanternState.star.some((entry) => itemKey(entry) === starKey);
+
+  function toggleStar(): void {
+    if (settings.status !== "ready") return;
+    const next = starred
+      ? settings.values.star.filter((entry) => itemKey(entry) !== starKey)
+      : [item, ...settings.values.star];
+    void settings
+      .save({ ...settings.values, star: next }, settings.revision)
+      .then((ok) => (ok ? undefined : settings.reload()));
+  }
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";
   const isAihot = item.source === "aihot";
@@ -430,6 +445,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           style={styles.primary}
         >
           <Text style={styles.primaryText}>陪读</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={starred ? "取消收藏" : "收藏"}
+          onPress={toggleStar}
+          style={[styles.ghost, starred ? { borderColor: theme.colors.accent } : null]}
+        >
+          <Text style={[styles.ghostText, starred ? { color: theme.colors.accent } : null]}>
+            {starred ? "已收藏" : "收藏"}
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"

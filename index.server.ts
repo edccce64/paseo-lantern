@@ -14,6 +14,7 @@ import { requestTranslate, statusTranslate } from "./server/translate";
 import { articleRpc } from "./shared/article";
 import { listRpc } from "./shared/feed";
 import { pingRpc } from "./shared/ping";
+import { lanternStateSettings } from "./shared/settings";
 import { translateRequestRpc, translateStatusRpc } from "./shared/translate";
 import {
   subsAddRpc,
@@ -25,6 +26,7 @@ import {
 } from "./shared/subs";
 
 export default function contribute(server: PluginServerContext) {
+  server.registerSettings(lanternStateSettings);
   server.handle(pingRpc, checkPing);
   server.handle(listRpc, listFeed);
   server.handle(articleRpc, getArticle);

@@ -1,12 +1,27 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { openExternalUrl, useRpc } from "@getpaseo/plugin/client";
+import { openExternalUrl, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { FlatList, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { CHANNELS, type ChannelId, type FeedItem, type FeedState, listRpc } from "../shared/feed";
+import {
+  EMPTY_STATE,
+  type LanternState,
+  MAX_READ_ENTRIES,
+  itemKey,
+  lanternStateSettings,
+} from "../shared/settings";
 import { ArticleView } from "./article";
 import { SubsPanel } from "./subs-panel";
+
+/** 频道来自服务端，收藏是本地伪频道：直接用 settings 里的快照渲染 */
+type ViewChannel = ChannelId | "star";
+
+const CHIPS: Array<{ id: ViewChannel; title: string }> = [
+  ...CHANNELS.map((entry) => ({ id: entry.id as ViewChannel, title: entry.title })),
+  { id: "star", title: "收藏" },
+];
 
 function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
@@ -38,13 +53,32 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const list = useRpc(listRpc);
-  const [channel, setChannel] = useState<ChannelId>("aihot-selected");
+  const settings = useSettings(lanternStateSettings);
+  const [channel, setChannel] = useState<ViewChannel>("aihot-selected");
   const [openItem, setOpenItem] = useState<FeedItem | null>(null);
   const [subsOpen, setSubsOpen] = useState(false);
 
+  const state = settings.status === "ready" ? settings.values : EMPTY_STATE;
+
+  function saveState(patch: Partial<LanternState>): void {
+    if (settings.status !== "ready") return;
+    void settings
+      .save({ ...settings.values, ...patch }, settings.revision)
+      // 冲突时重拉一次，下一次操作基于新值
+      .then((ok) => (ok ? undefined : settings.reload()));
+  }
+
+  function open(item: FeedItem): void {
+    setOpenItem(item);
+    const key = itemKey(item);
+    if (state.read.includes(key)) return;
+    saveState({ read: [...state.read, key].slice(-MAX_READ_ENTRIES) });
+  }
+
   const query = useQuery({
     queryKey: ["lantern", channel],
-    queryFn: () => list({ channel, limit: 60 }),
+    queryFn: () => list({ channel: channel as ChannelId, limit: 60 }),
+    enabled: channel !== "star",
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -97,6 +131,14 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
       },
+      rowHead: { flexDirection: "row" as const, gap: 8, alignItems: "flex-start" as const },
+      unreadDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 999,
+        marginTop: 9,
+        backgroundColor: theme.colors.accent,
+      },
       rowTitle: {
         color: theme.colors.foreground,
         fontSize: layout.compact ? 16 : 17,
@@ -118,6 +160,7 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
   }, [theme, layout.compact]);
 
   async function refresh() {
+    if (channel === "star") return;
     setRefreshing(true);
     try {
       const fresh = await list({ channel, limit: 60, force: true });
@@ -133,16 +176,20 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
     const meta = [item.origin, item.badge, formatTime(item.publishedAt)].filter(
       (part): part is string => Boolean(part),
     );
+    const unread = !state.read.includes(itemKey(item));
     return (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={item.title}
-        onPress={() => setOpenItem(item)}
+        onPress={() => open(item)}
         style={styles.row}
       >
-        <Text style={styles.rowTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
+        <View style={styles.rowHead}>
+          {unread ? <View style={styles.unreadDot} /> : null}
+          <Text style={[styles.rowTitle, { flex: 1 }]} numberOfLines={2}>
+            {item.title}
+          </Text>
+        </View>
         <View style={styles.metaRow}>
           {meta.map((part, index) => (
             <Text key={`${part}-${index}`} style={styles.meta} numberOfLines={1}>
@@ -155,10 +202,15 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
     );
   }
 
-  const data = query.data?.items ?? [];
-  const statusText = query.data
-    ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
-    : "";
+  const isStarChannel = channel === "star";
+  const data = isStarChannel ? state.star : (query.data?.items ?? []);
+  const isPending = !isStarChannel && query.isPending;
+  const isError = !isStarChannel && query.isError;
+  const statusText = isStarChannel
+    ? `${state.star.length} 条收藏`
+    : query.data
+      ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
+      : "";
 
   if (openItem) {
     return (
@@ -174,7 +226,7 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
   return (
     <View style={styles.screen}>
       <View style={styles.chipBar}>
-        {CHANNELS.map((entry) => {
+        {CHIPS.map((entry) => {
           const active = entry.id === channel;
           return (
             <Pressable
@@ -203,23 +255,25 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
               <Text style={styles.refreshText}>订阅管理</Text>
             </Pressable>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="刷新"
-            disabled={refreshing}
-            onPress={() => void refresh()}
-            style={styles.refresh}
-          >
-            <Text style={styles.refreshText}>{refreshing ? "刷新中" : "刷新"}</Text>
-          </Pressable>
+          {isStarChannel ? null : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="刷新"
+              disabled={refreshing}
+              onPress={() => void refresh()}
+              style={styles.refresh}
+            >
+              <Text style={styles.refreshText}>{refreshing ? "刷新中" : "刷新"}</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
-      {query.isPending ? (
+      {isPending ? (
         <View style={styles.state}>
           <Text style={styles.stateText}>正在载入</Text>
         </View>
-      ) : query.isError ? (
+      ) : isError ? (
         <View style={styles.state}>
           <Text style={styles.stateText}>
             {query.error instanceof Error ? query.error.message : "载入失败"}
@@ -244,7 +298,11 @@ export function LanternScreen({ theme, layout }: PluginScreenProps) {
           ListEmptyComponent={
             <View style={styles.state}>
               <Text style={styles.stateText}>
-                {channel === "mine" ? "还没有订阅，点右上角「订阅管理」加一个。" : "这个频道还没有内容"}
+                {isStarChannel
+                  ? "还没有收藏。打开一篇文章，点底部的「收藏」。"
+                  : channel === "mine"
+                    ? "还没有订阅，点右上角「订阅管理」加一个。"
+                    : "这个频道还没有内容"}
               </Text>
             </View>
           }

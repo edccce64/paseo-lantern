@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import type { ArticleResult, ArticleVersion } from "../shared/article";
 import { readCache, writeCache } from "./cache";
-import { readLocalRewrite } from "./rewrite-files";
 import { isMostlyEnglish } from "./text/lang";
 import { extractFromPage } from "./text/markdown";
+import { readTranslation } from "./translate-store";
 
 const BODY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const PAGE_TIMEOUT_MS = 20_000;
@@ -60,26 +60,30 @@ export async function fetchPageArticle(input: {
     }
   }
 
-  const localRewrite = await readLocalRewrite(input.id);
+  const translation = await readTranslation(input.id);
   const base = {
     title: input.title,
     origin: input.origin,
     publishedAt: input.publishedAt,
     url: input.url,
     summary: input.summary,
-    versions: { original: true, translation: false, rewrite: false, local: localRewrite !== null },
+    versions: {
+      original: true,
+      translation: translation !== null,
+      rewrite: false,
+    },
     looksEnglish: body ? isMostlyEnglish(body) : false,
   };
 
-  if (input.version === "local") {
-    if (localRewrite) {
-      return { ...base, markdown: localRewrite, bodyState: "full", note: null };
+  if (input.version === "translation") {
+    if (translation) {
+      return { ...base, markdown: translation.markdown, bodyState: "full", note: null };
     }
     return {
       ...base,
       markdown: body ?? input.summary,
       bodyState: body ? "full" : input.summary ? "summary" : "unavailable",
-      note: "本地中文稿不在了，可以再生成一次。",
+      note: "这篇还没译，点上面的「译文」。",
     };
   }
 

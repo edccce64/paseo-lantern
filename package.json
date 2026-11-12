@@ -15,8 +15,7 @@
     "shared/"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "verify:rewrite": "node scripts/verify-rewrite.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.15.4",

@@ -1,7 +1,7 @@
 # HANDOFF · paseo-lantern（提灯）
 
 最后更新：2026-11-12 22:40
-当前版本：P4 完成，EDC 改写服务端已验证、界面未实测。
+当前版本：P4 完成。个人订阅的「译文」服务端已验证，界面未实测。
 
 ---
 
@@ -48,7 +48,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
 | 陪读：弹窗确认后发给最近活跃 agent | 已完成（已实测发送） |
-| EDC 改写：「我的订阅」英文正文交给 agent 写成中文稿 | 部分完成（服务端已验证，界面未实测） |
+| 译文：「我的订阅」英文正文点一下，服务端直连 DeepSeek 翻成中文 | 部分完成（服务端已验证，界面未实测） |
 
 ## 4. 还没做
 
@@ -73,7 +73,6 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `client/article.tsx` | 368 | 正文视图：返回、标题、版本 chips、Markdown、底部「陪读 / 原文」、陪读确认弹窗 |
 | `client/subs-panel.tsx` | 250 | 订阅管理弹窗：列表、加源、删源、导入导出 OPML |
 | `client/companion.ts` | 43 | 陪读提示词拼装 |
-| `client/rewrite.ts` | 43 | EDC 改写提示词拼装（要求写进文件） |
 | `client/item.tsx` | 13 | 侧边栏行，图标 `Lamp` |
 
 服务端（跑在 daemon 子进程里）：
@@ -88,8 +87,8 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `server/page-article.ts` | 订阅条目正文抽取 |
 | `server/text/markdown.ts` | HTML→Markdown、Readability 兜底 |
 | `server/text/lang.ts` | 判定正文是否以英文为主（CJK 占比 < 5%） |
-| `server/rewrite.ts` | EDC 改写的两个 RPC：写源文件、查产物 |
-| `server/rewrite-files.ts` | `rewrites/` 路径、短哈希文件名、产物读写与完成判定 |
+| `server/translate.ts` | 译文：分段调 DeepSeek，后台任务 + 进度，写缓存 |
+| `server/translate-store.ts` | `translations/` 路径、短哈希文件名、译文读写 |
 | `server/sources/aihot.ts` | AIHOT 两个接口 |
 | `server/sources/qiaomu.ts` | 乔木列表与源名映射 |
 | `server/sources/http.ts` | 15 秒超时、ETag、429 处理、JSON 与文本两种 |
@@ -102,19 +101,13 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `shared/feed.ts` | 四个频道、条目 schema、四态取数、`lantern.list` |
 | `shared/article.ts` | `lantern.article` |
 | `shared/subs.ts` | 六个订阅 RPC |
-| `shared/rewrite.ts` | `lantern.rewrite.request`、`lantern.rewrite.status` |
+| `shared/translate.ts` | `lantern.translate.request`、`lantern.translate.status` |
 | `shared/ping.ts` | `lantern.ping` 自检 |
 
 入口：
 
 - `index.client.tsx`：注册屏幕 `lantern` + 侧边栏头部行。
 - `index.server.ts`：注册 11 个 RPC。
-
-自检工具（不进构建）：
-
-- `test-harness.ts` + `tsconfig.test.json` + `scripts/verify-rewrite.mjs`。
-- `npm run verify:rewrite` 编译成 `.test-build/` 后跑一遍 EDC 改写链路：写源文件 → 模拟 agent 写产物 → 轮询状态 → 正文页读本地稿。
-- `tsconfig.test.json` 用 `noCheck`，只求产物。类型检查仍用 `npm run typecheck`。
 
 ---
 
@@ -133,7 +126,12 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `qiaomu-body-<id>.json` | 乔木正文 Markdown | 7 天 |
 | `qiaomu-translation-<id>.json` | 乔木译文 | 30 分钟 |
 | `mine-<subId>.json` | 单个订阅抓到的条目 | 15 分钟 |
-| `page-<base64url>.json` | 订阅条目正文 | 7 天 |
+| `page-<sha1>.json` | 订阅条目正文 | 7 天 |
+| `translations/<key>.json` | 个人订阅的本地译文 | 永久 |
+
+`key` / `<sha1>` 都是条目 id 或 url 的 sha1 前 16 位。
+
+旧编号的 `rewrites/` 目录不再使用（EDC 改写已取消）。
 
 取数四态（`shared/feed.ts`）：
 
@@ -206,14 +204,15 @@ AIHOT（匿名只读）：
 ## 10. 已知问题
 
 1. 正文缓存没有容量上限和淘汰（SPEC 写的是 100 篇 / 30 天）。目前只按时间过期，不限数量。
-2. 订阅条目的正文页没有版本切换（个人源本来就没有）。
+2. 订阅条目的正文页有「原文 / 译文」两个 chip（只对英文正文出现）。
 3. 订阅抓取是懒加载：打开频道或点刷新时才抓。不会后台定时跑。
 4. 乔木译文接口对多数样本返回 `unavailable`，译文 chip 常是灰的。
 5. 陪读只能发给「最近更新过的 agent」，没有手动选目标的功能。
 
 ## 11. 没验证过的
 
-- iPhone 上的实际体验：列表、正文长文滚动、订阅弹窗（底部弹层）、陪读弹窗。
+- 「译文」的界面部分：chip 什么时候出现、进度文案、翻完后自动切版本、失败重试。服务端已实测（见 11.7），客户端未实测。
+- iPhone 上的实际体验：列表、正文长文滚动、订阅弹窗（底部弹层）、陪读弹窗、译文 chip。
 - 真断网时的 `stale` 分支（从没断网测过）。
 - Readability 兜底分支（现有样本乔木都自带 `content`，没走到）。
 - 订阅很多（20+）时的抓取耗时。
@@ -226,24 +225,35 @@ AIHOT（匿名只读）：
 
 ---
 
-## 11.6 EDC 改写为什么不做在乔木侧（2026-11-12 晚）
+## 11.6 为什么不做 EDC 改写（2026-11-12 深夜）
 
-用户判断是对的，已用本机缓存核实：
+先用两件事排除乔木侧：
 
 - 乔木 9 篇样本里 7 篇有 `rewrite.body`，2800–7200 字。
 - 9 篇的 `translation` 全部 `unavailable`。
 
-所以乔木侧不需要 P5。改写需求改到「我的订阅」：那里的英文文章没有任何中文版。
+所以乔木侧不做生成。英文文的缺口在「我的订阅」。
 
-界面名定「EDC 改写」，位置在正文页底部，只在三个条件同时成立时出现：
+第一版做的是「EDC 改写」：把正文写成源文件，交给 agent，agent 写出中文稿。做完了，也跑通了。
 
-1. 条目来自「我的订阅」。
-2. 正文是英文（CJK 占（CJK + 拉丁）不到 5%，且拉丁字母 ≥ 300）。
-3. 本地产物还不存在。
+但它有个绕不过的体验问题：Paseo 0.15.4 的 `agent.send()` 只能直发，用户要去会话界面看 agent 在干什么。这让阅读被打断。
+
+改成的做法：服务端自己调翻译接口，点一下就在原地出译文，不跳页、不开弹窗、不碰 agent。
+
+## 11.7 译文服务端实测（2026-11-12 23:50）
+
+用 SoftBank 那篇（4 段、5030 字符）实测：
+
+- `lantern.translate.request` 立即返回 `working`，后台开跑。
+- 4 段约 9 秒翻完，状态转 `ready`。
+- 正文页 `version: "translation"` 读到 2482 字中文稿，`versions.translation` 为 `true`。
+- 接口：`https://api.deepseek.com/chat/completions`，模型 `deepseek-chat`，key 读 `~/.pi/agent/auth.json` 的 `deepseek.key`（也认 `DEEPSEEK_API_KEY`）。
+
+坑：把「第 x/y 段」写进 user 消息，模型会把它当正文一起输出。现已改成只发片段，另加一层前缀清理。
 
 ## 12. 下次开工建议
 
-先实测 EDC 改写的界面（见第 14 节第 12–15 条），再用真 agent 跑一篇，确认 agent 真的会把文件写出来。
+先实测「译文」的界面（第 14 节第 12–15 条）。
 
 实测通过后做 P6 已读 / 收藏：
 
@@ -251,13 +261,15 @@ AIHOT（匿名只读）：
 2. 存 host settings，`scope: "host"`，键名 `read`、`star`。
 3. 列表行加左边未读小点，正文页底部加收藏。
 
-如果 agent 不写文件：备选是读 agent 的 timeline（未验证能否读）。
+再往后：正文缓存加容量上限与淘汰（现在只按时间过期）。
 
 ---
 
 ## 13. 提交记录
 
 ```
+9086a55 fix: stop page cache key collisions and decode html entities in feed titles
+5738bef feat: EDC rewrite for english articles in personal subscriptions
 cd9592e docs: mark companion delivery as verified
 9d3a9cc docs: record P4 status and the composer API limitation
 4940cba feat: P4 companion send with confirmation dialog
@@ -286,8 +298,7 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 9. 打开一篇文章点「陪读」，弹窗显示 agent 名和提示词。
 10. 点「发送」，那个 agent 收到消息。（已验证 2026-11-12 18:20）
 11. 深色模式下文字颜色正常。
-12. 打开一篇 TechCrunch 英文文章，底部有「EDC 改写」。（未验证）
-13. 点它，弹窗里能看到源文件路径和产物路径。（未验证）
-14. 点「发送」，正文页出现「正在等 agent 写出中文稿」。（未验证）
-15. 等 agent 写完，出现「原文 / EDC 改写」两个 chip，自动切到中文稿。（未验证）
-16. 关掉页面再打开同篇，chip 还在，中文稿能直接读。（未验证）
+12. 打开一篇 TechCrunch 英文文章，顶部有「原文 / 译文」两个 chip。（未验证）
+13. 点「译文」，chip 变成「翻译 x/4」，不用跳任何页面。（未验证）
+14. 翻完后自动切到中文稿，chip 显示「译文」。（未验证）
+15. 关掉页面再打开同篇，直接点「译文」就能看，不再重新翻。（未验证）

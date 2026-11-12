@@ -141,7 +141,7 @@ export async function fetchQiaomuArticle(
       (entry.publishedTs ? new Date(entry.publishedTs).toISOString() : new Date().toISOString()),
     url: entry.link ?? "https://rss.qiaomu.ai",
     summary: entry.summaryZh?.trim() || entry.summary?.trim() || null,
-    versions: { original: true, translation: translated, rewrite: rewriteBody.length > 0, local: false },
+    versions: { original: true, translation: translated, rewrite: rewriteBody.length > 0 },
     looksEnglish: false,
   };
 

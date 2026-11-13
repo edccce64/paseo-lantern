@@ -10,6 +10,7 @@ import {
   subsImportRpc,
   subsListRpc,
   subsRemoveRpc,
+  subsSuggestRpc,
 } from "../shared/subs";
 
 type Props = {
@@ -27,15 +28,25 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   const removeSub = useRpc(subsRemoveRpc);
   const importSubs = useRpc(subsImportRpc);
   const exportSubs = useRpc(subsExportRpc);
+  const suggest = useRpc(subsSuggestRpc);
 
   const [url, setUrl] = useState("");
   const [opml, setOpml] = useState("");
   const [showImport, setShowImport] = useState(false);
+  const [search, setSearch] = useState("");
 
   const query = useQuery({
     queryKey: ["lantern-subs"],
     queryFn: () => listSubs({}),
     enabled: open,
+  });
+
+  const needle = search.trim();
+  const suggestions = useQuery({
+    queryKey: ["lantern-suggest", needle],
+    queryFn: () => suggest({ query: needle, limit: 8 }),
+    enabled: open && needle.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   const invalidate = () => {
@@ -44,7 +55,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   };
 
   const add = useMutation({
-    mutationFn: (value: string) => addSub({ url: value }),
+    mutationFn: (input: { url: string; title?: string }) => addSub(input),
     onSuccess: ({ item }) => {
       setUrl("");
       toast.show(`已添加：${item.title}`, { variant: "success" });
@@ -131,6 +142,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
       },
       ghostText: { color: theme.colors.foreground, fontSize: 14 },
       link: { color: theme.colors.statusDanger, fontSize: 14, paddingVertical: 8 },
+      linkAction: { color: theme.colors.accent, fontSize: 14, paddingVertical: 8 },
       note: { color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 18 },
       actions: { flexDirection: "row" as const, gap: 10 },
     };
@@ -183,11 +195,63 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
               accessibilityRole="button"
               accessibilityLabel="添加订阅"
               disabled={add.isPending || url.trim().length === 0}
-              onPress={() => add.mutate(url.trim())}
+              onPress={() => add.mutate({ url: url.trim() })}
               style={styles.action}
             >
               <Text style={styles.actionText}>{add.isPending ? "添加中" : "添加"}</Text>
             </Pressable>
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="搜博客、作者或标签"
+              placeholderTextColor={theme.colors.foregroundMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+            />
+            {needle.length > 0 ? (
+              <View>
+                {suggestions.isPending ? (
+                  <Text style={styles.note}>正在搜</Text>
+                ) : (suggestions.data?.items.length ?? 0) === 0 ? (
+                  <Text style={styles.note}>没有匹配的源</Text>
+                ) : (
+                  suggestions.data?.items.map((entry) => {
+                    const subscribed = items.some((item) => item.url === entry.url);
+                    return (
+                      <View key={entry.url} style={styles.row}>
+                        <View style={styles.rowLine}>
+                          <View style={styles.grow}>
+                            <Text style={styles.rowTitle} numberOfLines={1}>
+                              {entry.name}
+                            </Text>
+                            <Text style={styles.rowUrl} numberOfLines={1}>
+                              {entry.tags.length > 0 ? entry.tags.join(" · ") : entry.url}
+                            </Text>
+                          </View>
+                          {subscribed ? (
+                            <Text style={styles.note}>已订阅</Text>
+                          ) : (
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={`订阅：${entry.name}`}
+                              disabled={add.isPending}
+                              hitSlop={8}
+                              onPress={() => add.mutate({ url: entry.url, title: entry.name })}
+                            >
+                              <Text style={styles.linkAction}>订阅</Text>
+                            </Pressable>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.actions}>

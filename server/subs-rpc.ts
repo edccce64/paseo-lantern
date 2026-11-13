@@ -6,15 +6,17 @@ import {
   type subsListRpc,
   type subsRemoveRpc,
   type subsRenameRpc,
+  type subsSuggestRpc,
 } from "../shared/subs";
+import { suggestSources } from "./catalog";
 import { addSub, exportSubs, importSubs, readSubs, removeSub, renameSub } from "./subs";
 
 export async function listSubs(_input: RpcInput<typeof subsListRpc>) {
   return { items: await readSubs() };
 }
 
-export async function addSubscription({ url }: RpcInput<typeof subsAddRpc>) {
-  return { item: await addSub(url) };
+export async function addSubscription({ url, title }: RpcInput<typeof subsAddRpc>) {
+  return { item: await addSub(url, title) };
 }
 
 export async function removeSubscription({ id }: RpcInput<typeof subsRemoveRpc>) {
@@ -31,4 +33,8 @@ export async function importSubscriptions({ opml }: RpcInput<typeof subsImportRp
 
 export async function exportSubscriptions(_input: RpcInput<typeof subsExportRpc>) {
   return { opml: await exportSubs() };
+}
+
+export async function suggestSubscriptions({ query, limit }: RpcInput<typeof subsSuggestRpc>) {
+  return { items: suggestSources(query, limit) };
 }

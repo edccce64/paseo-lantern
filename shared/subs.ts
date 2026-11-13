@@ -18,7 +18,7 @@ export const subsListRpc = defineRpc({
 
 export const subsAddRpc = defineRpc({
   name: "lantern.subs.add",
-  input: z.object({ url: z.string().min(1) }),
+  input: z.object({ url: z.string().min(1), title: z.string().optional() }),
   output: z.object({ item: subscriptionSchema }),
 });
 
@@ -48,4 +48,21 @@ export const subsExportRpc = defineRpc({
   name: "lantern.subs.export",
   input: z.object({}),
   output: z.object({ opml: z.string() }),
+});
+
+/** 推荐源目录：内置的独立博客清单，有名字就有 RSS 地址 */
+export const suggestEntrySchema = z.object({
+  name: z.string(),
+  url: z.string(),
+  site: z.string().nullable(),
+  tags: z.array(z.string()),
+});
+
+export const subsSuggestRpc = defineRpc({
+  name: "lantern.subs.suggest",
+  input: z.object({
+    query: z.string().default(""),
+    limit: z.number().int().min(1).max(50).default(10),
+  }),
+  output: z.object({ items: z.array(suggestEntrySchema) }),
 });

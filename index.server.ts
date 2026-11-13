@@ -10,6 +10,7 @@ import {
   listSubs,
   removeSubscription,
   renameSubscription,
+  suggestSubscriptions,
 } from "./server/subs-rpc";
 import { requestTranslate, statusTranslate } from "./server/translate";
 import { articleRpc } from "./shared/article";
@@ -24,6 +25,7 @@ import {
   subsListRpc,
   subsRemoveRpc,
   subsRenameRpc,
+  subsSuggestRpc,
 } from "./shared/subs";
 
 export default function contribute(server: PluginServerContext) {
@@ -39,5 +41,6 @@ export default function contribute(server: PluginServerContext) {
   server.handle(subsRenameRpc, renameSubscription);
   server.handle(subsImportRpc, importSubscriptions);
   server.handle(subsExportRpc, exportSubscriptions);
+  server.handle(subsSuggestRpc, suggestSubscriptions);
   return startBackgroundSync();
 }

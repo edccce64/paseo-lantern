@@ -387,6 +387,16 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 未验证：真实 429 触发后的重试路径（实测 21 路并发未限流）。
 
+## 11.15 桌面左列加宽（2026-11-14）
+
+问题：桌面左列 320pt 时，五个频道标签放不下一行，「收藏」掉到第二行。手机 375pt 是一行。
+
+算数：标签区 = 左列宽 - 32（内边距）- 8（间隙）- 36（刷新图标）。320 时只有 244pt，五个标签需要约 299pt。
+
+改法：`styles.wideList.width` 从 320 改为 380。标签区 304pt，五个标签一行。窗口 1254pt 宽时，正文从 934pt 变为 874pt。
+
+验证：截图确认桌面五个标签与刷新图标在一行，列表标题少换行；正文标题与段落排版正常。
+
 ## 12. 下次开工建议
 
 剩下的都是小项，按需挑：
@@ -401,6 +411,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+599f3f3 fix: widen the desktop list column so the channels fit one row
 744822a perf: translate chunks in parallel
 9ccf7ea fix: keep the channel row on one line and tidy the subscription sheet
 c3eb8ee refactor: drop secondary labels and let the layout carry the ui

@@ -425,6 +425,8 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 验证：搜索「阮一峰」返回 1 条；点「订阅」后写入 `subscriptions.json`，列表出现该项，按钮变「已订阅」。纯函数测试：编程 → 5 条，少数派 / 晚点 → 0 条（这两个不在独立博客目录里，符合预期）。
 
+中文输入（2026-11-14）：用户报告输入法一打就转英文。已做两处调整：搜索框去掉 `autoCapitalize` / `autoCorrect`，并加 350ms 防抖（输入组字时不再每敲一下就发请求）。已验证：粘贴中文「阮一峰」能正常搜索。未验证：直接用输入法逐字打字。
+
 限制：目录里没有公众号。公众号只在乔木服务端目录（185 源 / 90 个号），没有单源 RSS 地址，无法加入「我的订阅」。
 
 ## 12. 下次开工建议
@@ -441,6 +443,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+a264fda fix: let the catalog search accept chinese input
 2001474 feat: search a built-in blog catalog when adding subscriptions
 10d3c12 feat: reword the ai companion prompt and drop the agent label
 599f3f3 fix: widen the desktop list column so the channels fit one row

@@ -76,9 +76,9 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 文件 | 行数 | 作用 |
 | --- | --- | --- |
 | `client/screen.tsx` | 377 | 频道 chips + 图标操作、列表、底部状态；桌面左列 |
-| `client/article.tsx` | 536 | 正文视图：返回、标题、版本 chips、Markdown、底部「陪读 + 收藏 + 原文」、陪读确认弹窗 |
+| `client/article.tsx` | 528 | 正文视图：返回、标题、版本 chips、Markdown、底部「AI 陪读 + 收藏 + 原文」、AI 陪读确认弹窗 |
 | `client/subs-panel.tsx` | 250 | 订阅管理弹窗：列表、加源、删源、导入导出 OPML |
-| `client/companion.ts` | 43 | 陪读提示词拼装 |
+| `client/companion.ts` | 19 | AI 陪读提示词拼装（标题、来源、链接，不含正文） |
 | `client/panel.tsx` | 10 | 工作区分屏面板，渲染同一个 `LanternSurface` |
 | `client/item.tsx` | 13 | 侧边栏行，图标 `Lamp` |
 
@@ -397,6 +397,19 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 验证：截图确认桌面五个标签与刷新图标在一行，列表标题少换行；正文标题与段落排版正常。
 
+## 11.16 AI 陪读弹窗（2026-11-14）
+
+三项：
+
+1. 按钮与弹窗标题：「陪读」改「AI 陪读」。按钮字 15 → 16，加粗。
+2. 删掉弹窗里的「目标 agent」与 agent 名两行。agent 标题就是当前会话名，放在这里没有意义。发送目标仍取最近活跃 agent。
+3. 提示词改短：不贴摘要、不贴正文，只给标题 / 来源 / 链接。固定文案：
+   `帮我阅读这篇文章，先讲清楚背景和关键概念，再讲清楚对普通人的影响是什么。不确定的术语或专有名词查清楚告诉我。引用原文要标出处。抓取原文链接原文再回答。`
+
+顺手修了两处：预览文字 12 → 13 并换用正文色（原来偏灰难读）；「发送」按钮加 `minWidth: 92`，否则字变大后竖排换行。
+
+验证：截图确认按钮与弹窗标题、无 agent 行、提示词内容、发送按钮一行。`tsc` 0 错误。发送链路未重测（与以前同一函数，参数不再传正文）。
+
 ## 12. 下次开工建议
 
 剩下的都是小项，按需挑：
@@ -411,6 +424,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+10d3c12 feat: reword the ai companion prompt and drop the agent label
 599f3f3 fix: widen the desktop list column so the channels fit one row
 744822a perf: translate chunks in parallel
 9ccf7ea fix: keep the channel row on one line and tidy the subscription sheet
@@ -449,7 +463,7 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 6. 切到「我的订阅」，能看到少数派、阮一峰和 TechCrunch AI 的条目。
 7. 点「订阅管理」，弹窗在手机上从底部升起。
 8. 回列表点「刷新」，状态行时间变化。
-9. 打开一篇文章点「陪读」，弹窗显示 agent 名和提示词。
+9. 打开一篇文章点「AI 陪读」，弹窗只显示提示词，不显示 agent 名。
 10. 点「发送」，那个 agent 收到消息。（已验证 2026-11-12 18:20）
 11. 深色模式下文字颜色正常。
 12. 打开一篇 TechCrunch 英文文章，顶部有「原文 / 译文」两个 chip。（已验证 2026-11-13）

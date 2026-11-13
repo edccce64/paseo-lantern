@@ -94,9 +94,16 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const [refreshing, setRefreshing] = useState(false);
 
   const styles = useMemo(() => {
-    const horizontal = layout.compact ? 16 : 24;
+    // 列表在手机上占满宽度，在桌面上是 320 的窄栏，两类都用 16 的内边距
+    const horizontal = 16;
     return {
       screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+      wideList: {
+        width: 320,
+        borderRightWidth: 1,
+        borderRightColor: theme.colors.border,
+      },
+      wideBody: { flex: 1 },
       chipBar: {
         flexDirection: "row" as const,
         flexWrap: "wrap" as const,
@@ -220,18 +227,16 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
       : "";
 
-  if (openItem) {
-    return (
-      <ArticleView
-        item={openItem}
-        theme={theme}
-        layout={layout}
-        onBack={() => setOpenItem(null)}
-      />
-    );
-  }
+  const articlePane = openItem ? (
+    <ArticleView
+      item={openItem}
+      theme={theme}
+      layout={layout}
+      onBack={() => setOpenItem(null)}
+    />
+  ) : null;
 
-  return (
+  const listPane = (
     <View style={styles.screen}>
       <View style={styles.chipBar}>
         {CHIPS.map((entry) => {
@@ -278,7 +283,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       </View>
 
       {!isStarChannel && query.data?.state === "stale" ? (
-        <Text style={[styles.status, { paddingHorizontal: (layout.compact ? 16 : 24) }]}>
+        <Text style={[styles.status, { paddingHorizontal: 16 }]}>
           有源抓取失败，现在显示的是上次缓存
         </Text>
       ) : null}
@@ -331,4 +336,22 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       />
     </View>
   );
+
+  // 桌面：左窄列列表，右侧读正文，选文章不替换整个界面
+  if (!layout.compact) {
+    return (
+      <View style={[styles.screen, { flexDirection: "row" }]}>
+        <View style={styles.wideList}>{listPane}</View>
+        <View style={styles.wideBody}>
+          {articlePane ?? (
+            <View style={styles.state}>
+              <Text style={styles.stateText}>从左边选一篇文章</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  return articlePane ?? listPane;
 }

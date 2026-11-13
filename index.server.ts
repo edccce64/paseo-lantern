@@ -1,5 +1,6 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { getArticle } from "./server/article";
+import { startBackgroundSync } from "./server/background";
 import { listFeed } from "./server/feed";
 import { checkPing } from "./server/ping";
 import {
@@ -38,5 +39,5 @@ export default function contribute(server: PluginServerContext) {
   server.handle(subsRenameRpc, renameSubscription);
   server.handle(subsImportRpc, importSubscriptions);
   server.handle(subsExportRpc, exportSubscriptions);
-  return () => {};
+  return startBackgroundSync();
 }

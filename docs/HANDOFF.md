@@ -75,8 +75,8 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 
 | 文件 | 行数 | 作用 |
 | --- | --- | --- |
-| `client/screen.tsx` | 357 | 频道 chips、状态行、列表；桌面显示为左列，右侧接正文 |
-| `client/article.tsx` | 368 | 正文视图：返回、标题、版本 chips、Markdown、底部「陪读 / 原文」、陪读确认弹窗 |
+| `client/screen.tsx` | 377 | 频道 chips + 图标操作、列表、底部状态；桌面左列 |
+| `client/article.tsx` | 536 | 正文视图：返回、标题、版本 chips、Markdown、底部「陪读 + 收藏 + 原文」、陪读确认弹窗 |
 | `client/subs-panel.tsx` | 250 | 订阅管理弹窗：列表、加源、删源、导入导出 OPML |
 | `client/companion.ts` | 43 | 陪读提示词拼装 |
 | `client/panel.tsx` | 10 | 工作区分屏面板，渲染同一个 `LanternSurface` |
@@ -156,7 +156,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 - `star`：整条 `FeedItem` 快照数组。「收藏」频道不联网也能渲染。
 - 读写走客户端 `useSettings()`；服务端只 `registerSettings` 声明 schema。保存用 revision 做乐观锁，冲突时重拉一次。
 
-取数四态（`shared/feed.ts`）：
+取数四态（`shared/feed.ts`）。显示位置：列表底部 footer（空列表不显示）：
 
 - `live`：这次抓到新数据 → 「更新于 HH:mm」
 - `revalidated`：304，内容没变 → 「已是最新 HH:mm」
@@ -330,8 +330,33 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 - 缓存：造数据实测 126 MB / 110 篇 → 84 MB / 100 篇；最旧 page 被删、最新保留；`subscriptions.json` 与 `mine-*.json` 保留；3 个 42 MB 大文件按最旧优先删 1 个。
 - 后台刷新：插件日志出现 `background sync scheduled every 15 minutes`，启动 60 秒后出现 `background sync: 3 sources, 33 items, live`。
-- 两栏：截图确认。选中文章后左列仍在，右侧显示正文；状态行显示「缓存 01:24」（后台刷新写入的数据）。
+- 两栏：截图确认。选中文章后左列仍在，右侧显示正文。
 - 收藏落盘：点收藏后 `~/.paseo/plugin-settings/paseo-lantern/lantern-state.json` 的 `star` 出现完整快照；插件重载后「收藏」频道仍有 1 条。
+
+## 11.13 界面去文案（2026-11-14）
+
+原则：不必要的辅助标签与说明删掉，用位置、图标、分组表达功能。
+
+列表页（`client/screen.tsx`）：
+
+- 删掉常驻状态行（原来一行写「缓存 01:24」+「订阅管理」+「刷新」）。
+- 「订阅管理」与「刷新」改为图标按钮（`Settings` / `RotateCw`），放在 chip 行右侧。刷新中图标变强调色。
+- 数据新鲜度移到列表底部 footer，只有滚动到底才看到。空列表不显示。
+- 频道名缩短：`精选 / 热点 / 乔木 / 订阅 / 收藏`。无障碍标签保持全名。
+- 列表行去掉「精选」类徒标，只留来源 + 时间；来源过长时只截断来源，时间始终可见。
+- 空态文案缩短（「还没有收藏」「还没有订阅」「暂无内容」），配图标。
+- 桌面右栏空态：`Lamp` 图标 + 「选一篇文章」。
+
+文章页（`client/article.tsx`）：
+
+- 顶部「返回」改 `ChevronLeft` 图标。
+- 版本行只渲染可用版本，且只有多于一个版本时出现。乔木只有原文 + 改写两个时仍在。
+- 底部「收藏 / 原文」改图标按钮（`Star` / `ArrowUpRight`）；已收藏的星星用强调色描边。
+- 翻译进度文案缩短；无正文文案改「没有正文」。
+
+订阅弹窗（`client/subs-panel.tsx`）：空态从两句改一句。
+
+验证：截图确认列表页、文章页、收藏空态、订阅弹窗；`tsc --noEmit` 0 错误；客户端禁用 API 扫描 0 命中。移动端字号与触控尺寸未实测（chip 在手机上仍为 44 高）。
 
 ## 12. 下次开工建议
 
@@ -347,6 +372,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+c3eb8ee refactor: drop secondary labels and let the layout carry the ui
 2cea29d docs: record p8 status for the split view, background sync, and cache cap
 587e4a5 feat: cap the cache directory at 100 MB
 ed9b1a4 feat: refresh personal subscriptions in the background every 15 minutes

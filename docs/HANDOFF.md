@@ -364,6 +364,29 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 2. **订阅弹窗布局散**。原因：内层 `ScrollView` 写了固定 `maxHeight`（260/320），内容少也占满，底部大空白；导入/导出按钮没设 flex，挤在左侧。修法：去掉内层 `ScrollView`，交给 Modal 自己滚动；导入/导出改 `flex: 1` 各占一半。
 3. 手机端未实测，以上按代码推断与桌面截图验证。
 
+## 11.14 翻译并发（2026-11-14）
+
+问题：译文串行调用，一段接一段。长文慢。
+
+实测（`deepseek-chat`，单段 1600 字符）：
+
+| 文章 | 段数 | 串行 | 全并发 |
+| --- | --- | --- | --- |
+| SoftBank（5030 字符） | 4 | 8.8 秒 | 2.6 秒 |
+| Latent Space（26663 字符） | 21 | 39.0 秒 | 2.5 秒 |
+
+单段本身只要 1.3–2.9 秒。瓶颈是串行累加。
+
+改法（`server/translate.ts`）：
+
+- `CONCURRENCY = 6`，worker 池取段，`parts[index]` 按段号写回，顺序不乱。
+- 任一段失败就设 `failed` 标志，不再开新段；已在跑的段跑完。
+- 429 / 5xx 重试一次，等 1.5 秒。
+
+端到端实测：TechCrunch 4483 字符 / 3 段，点译文后 2 秒内出中文稿并写入 `translations/`，段落顺序与原文一致。
+
+未验证：真实 429 触发后的重试路径（实测 21 路并发未限流）。
+
 ## 12. 下次开工建议
 
 剩下的都是小项，按需挑：
@@ -378,6 +401,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+744822a perf: translate chunks in parallel
 9ccf7ea fix: keep the channel row on one line and tidy the subscription sheet
 c3eb8ee refactor: drop secondary labels and let the layout carry the ui
 2cea29d docs: record p8 status for the split view, background sync, and cache cap

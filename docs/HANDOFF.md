@@ -347,6 +347,10 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+2cea29d docs: record p8 status for the split view, background sync, and cache cap
+587e4a5 feat: cap the cache directory at 100 MB
+ed9b1a4 feat: refresh personal subscriptions in the background every 15 minutes
+7e246d6 feat: show the list and article side by side on wide screens
 fdd1d07 feat: offer translation chips for AIHOT articles
 c17583d fix: fetch article bodies for AIHOT items from the original page
 2a174c8 feat: translate english subscription articles in place

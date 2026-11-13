@@ -102,7 +102,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     return {
       screen: { flex: 1, backgroundColor: theme.colors.surface0 },
       wideList: {
-        width: 320,
+        // 380 是五个频道标签一行放得下的最小宽度，再窄「收藏」会掉行
+        width: 380,
         borderRightWidth: 1,
         borderRightColor: theme.colors.border,
       },

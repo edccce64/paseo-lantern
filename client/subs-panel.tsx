@@ -2,7 +2,7 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { copyText, Modal, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import {
   subsAddRpc,
@@ -34,6 +34,13 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   const [opml, setOpml] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+
+  // 输入法组字时不要每敲一个拼音就发请求；停手 350ms 再搜
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(search), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const query = useQuery({
     queryKey: ["lantern-subs"],
@@ -41,7 +48,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
     enabled: open,
   });
 
-  const needle = search.trim();
+  const needle = debounced.trim();
   const suggestions = useQuery({
     queryKey: ["lantern-suggest", needle],
     queryFn: () => suggest({ query: needle, limit: 8 }),
@@ -208,8 +215,6 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
               onChangeText={setSearch}
               placeholder="搜博客、作者或标签"
               placeholderTextColor={theme.colors.foregroundMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
               style={styles.input}
             />
             {needle.length > 0 ? (

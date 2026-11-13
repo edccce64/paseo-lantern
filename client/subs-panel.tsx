@@ -144,7 +144,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
           <ScrollView style={{ maxHeight: layout.compact ? 260 : 320 }}>
             <View style={{ gap: 0 }}>
               {items.length === 0 ? (
-                <Text style={styles.note}>还没有订阅。把 RSS 地址粘到下面，或者导入 OPML。</Text>
+                <Text style={styles.note}>还没有订阅</Text>
               ) : null}
               {items.map((item) => (
                 <View key={item.id} style={styles.row}>

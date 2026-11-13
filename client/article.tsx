@@ -1,6 +1,6 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { openExternalUrl, usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Markdown, Modal, useToast } from "@getpaseo/plugin/client/ui";
+import { Icon, Markdown, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
@@ -132,11 +132,10 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       topBar: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
-        paddingHorizontal: horizontal - 8,
+        paddingHorizontal: horizontal - 12,
         height: 48,
       },
-      back: { minHeight: 44, justifyContent: "center" as const, paddingHorizontal: 8 },
-      backText: { color: theme.colors.accent, fontSize: 15 },
+      back: { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const },
       body: { flex: 1 },
       bodyContent: { paddingHorizontal: horizontal, paddingBottom: 32, gap: 12 },
       title: {
@@ -200,6 +199,15 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         borderColor: theme.colors.border,
       },
       ghostText: { color: theme.colors.foreground, fontSize: 15 },
+      iconGhost: {
+        width: 44,
+        height: 44,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      },
       dialog: { gap: 12 },
       target: { color: theme.colors.foreground, fontSize: 14, lineHeight: 20 },
       targetName: { color: theme.colors.foreground, fontSize: 15, fontWeight: "600" as const },
@@ -351,6 +359,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     return versions.rewrite;
   }
 
+  /** 只留真正可用的版本；只剩「原文」时不渲染版本行 */
+  const visibleChips = chips.filter((entry) => availableVersion(entry.id));
+
   return (
     <View style={styles.screen}>
       <View style={styles.topBar}>
@@ -360,7 +371,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           onPress={onBack}
           style={styles.back}
         >
-          <Text style={styles.backText}>返回</Text>
+          <Icon name="ChevronLeft" size={22} color={theme.colors.foreground} />
         </Pressable>
       </View>
 
@@ -370,9 +381,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           {origin} · {formatWhen(publishedAt)}
         </Text>
 
-        {chips.length > 0 ? (
+        {visibleChips.length > 1 ? (
           <View style={styles.versions}>
-            {chips.map((entry) => {
+            {visibleChips.map((entry) => {
               const available = availableVersion(entry.id);
               const active = entry.id === version;
               return (
@@ -420,8 +431,8 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         {translating ? (
           <Text style={styles.note}>
             {translateSteps.total > 0
-              ? `正在翻译 ${translateSteps.done}/${translateSteps.total} 段，不用等在这里`
-              : "正在取正文，马上开始翻译"}
+              ? `正在翻译 ${translateSteps.done}/${translateSteps.total} 段`
+              : "准备翻译"}
           </Text>
         ) : null}
 
@@ -440,7 +451,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         ) : null}
 
         {markdown && !loading ? <Markdown>{markdown}</Markdown> : null}
-        {!markdown && !loading && !error ? <Text style={styles.note}>这篇没有可显示的正文。</Text> : null}
+        {!markdown && !loading && !error ? <Text style={styles.note}>没有正文</Text> : null}
       </ScrollView>
 
       <View style={styles.bottom}>
@@ -456,11 +467,13 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           accessibilityRole="button"
           accessibilityLabel={starred ? "取消收藏" : "收藏"}
           onPress={toggleStar}
-          style={[styles.ghost, starred ? { borderColor: theme.colors.accent } : null]}
+          style={[styles.iconGhost, starred ? { borderColor: theme.colors.accent } : null]}
         >
-          <Text style={[styles.ghostText, starred ? { color: theme.colors.accent } : null]}>
-            {starred ? "已收藏" : "收藏"}
-          </Text>
+          <Icon
+            name="Star"
+            size={18}
+            color={starred ? theme.colors.accent : theme.colors.foreground}
+          />
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -468,9 +481,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           onPress={() => {
             void openExternalUrl(item.url).catch(() => toast.error("打不开这个链接"));
           }}
-          style={styles.ghost}
+          style={styles.iconGhost}
         >
-          <Text style={styles.ghostText}>原文</Text>
+          <Icon name="ArrowUpRight" size={18} color={theme.colors.foreground} />
         </Pressable>
       </View>
 

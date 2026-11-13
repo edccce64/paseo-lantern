@@ -14,6 +14,8 @@ const API_URL = "https://api.deepseek.com/chat/completions";
 const MODEL = "deepseek-chat";
 /** 每段字符上限。太长模型容易漏译，太短调用次数多。 */
 const CHUNK_CHARS = 1600;
+/** 同时翻几段。实测单段 1–3 秒；21 段全并发也没限流，6 路保守可用。 */
+const CONCURRENCY = 6;
 const CHUNK_TIMEOUT_MS = 120_000;
 const JOB_KEEP_MS = 10 * 60 * 1000;
 const AUTH_FILE = path.join(os.homedir(), ".pi", "agent", "auth.json");
@@ -152,6 +154,18 @@ async function callDeepSeek(key: string, chunk: string, index: number): Promise<
   }
 }
 
+/** 429 或 5xx 重试一次，避免并发把偶发错误放大 */
+async function callWithRetry(key: string, chunk: string, index: number): Promise<string> {
+  try {
+    return await callDeepSeek(key, chunk, index);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!/返回 (429|5\d\d)/.test(message)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return callDeepSeek(key, chunk, index);
+  }
+}
+
 async function run(
   input: { id: string; url: string; title: string; origin?: string; publishedAt?: string; summary?: string | null },
   job: Job,
@@ -173,11 +187,27 @@ async function run(
     job.total = chunks.length;
     const key = await apiKey();
 
-    const parts: string[] = [];
-    for (let index = 0; index < chunks.length; index += 1) {
-      parts.push(await callDeepSeek(key, chunks[index], index + 1));
-      job.done = index + 1;
+    const parts: string[] = new Array(chunks.length).fill("");
+    let cursor = 0;
+    let failed = false;
+
+    async function worker(): Promise<void> {
+      while (!failed && cursor < chunks.length) {
+        const index = cursor;
+        cursor += 1;
+        try {
+          parts[index] = await callWithRetry(key, chunks[index], index + 1);
+          job.done += 1;
+        } catch (error) {
+          // 一段失败就停，不再开新段；在途的段会自己跑完
+          failed = true;
+          throw error;
+        }
+      }
     }
+
+    const workers = Math.min(CONCURRENCY, chunks.length);
+    await Promise.all(Array.from({ length: workers }, worker));
 
     const markdown = parts.join("\n\n").trim();
     if (markdown.length < 50) throw new Error("译文太短，可能没译成");

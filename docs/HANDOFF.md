@@ -48,6 +48,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | AIHOT 正文：从原文页抽取（两个频道都是） | 已完成 |
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
+| 推荐源搜索：内置 1342 个独立博客目录，搜名字或标签一键订阅 | 已完成（已验证 2026-11-14） |
 | 陪读：弹窗确认后发给最近活跃 agent | 已完成（已实测发送） |
 | 译文：AIHOT 与「我的订阅」的英文正文点一下，服务端直连 DeepSeek 翻成中文 | 已完成（界面已验证 2026-11-13） |
 | 已读：列表未读圆点，打开即标已读 | 已完成（已验证 2026-11-13） |
@@ -90,6 +91,8 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `server/mine.ts` | 个人订阅抓取与合并 |
 | `server/background.ts` | 后台定时刷新订阅：启动 60 秒后第一轮，之后每 15 分钟 |
 | `server/subs.ts` | 订阅文件读写、OPML 导入导出 |
+| `server/catalog.ts` | 内置博客目录搜索（名字、RSS 地址、标签） |
+| `server/data/blog-catalog.ts` | 1342 个独立博客的名字与 RSS 地址，生成自 chinese-independent-blogs（MIT） |
 | `server/feeds/parse.ts` | RSS / Atom / RDF 解析、OPML 解析与生成 |
 | `server/qiaomu-article.ts` | 乔木正文与版本 |
 | `server/page-article.ts` | 订阅条目正文抽取 |
@@ -410,6 +413,20 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 验证：截图确认按钮与弹窗标题、无 agent 行、提示词内容、发送按钮一行。`tsc` 0 错误。发送链路未重测（与以前同一函数，参数不再传正文）。
 
+## 11.17 推荐源搜索（2026-11-14）
+
+订阅弹窗加了搜索框，数据是内置目录，不联网。
+
+- 目录：`server/data/blog-catalog.ts`，1342 条，字段 name / url(RSS) / site / tags。来源 `timqian/chinese-independent-blogs`（MIT），去掉了原 id 字段。
+- 搜索：`server/catalog.ts` 的 `suggestSources(query, limit)`。排序：名字开头匹配 > 名字包含 > 标签或地址包含。空 query 返回前 10 条。
+- RPC：`lantern.subs.suggest`，默认最多 10 条。
+- 客户端：输入即时搜，每条显示名字与标签，右侧「订阅」按钮；已存在的地址显示「已订阅」。点订阅直接用目录里的名字作为标题，不再抓一次源取标题。
+- `lantern.subs.add` 新增可选 `title` 参数。
+
+验证：搜索「阮一峰」返回 1 条；点「订阅」后写入 `subscriptions.json`，列表出现该项，按钮变「已订阅」。纯函数测试：编程 → 5 条，少数派 / 晚点 → 0 条（这两个不在独立博客目录里，符合预期）。
+
+限制：目录里没有公众号。公众号只在乔木服务端目录（185 源 / 90 个号），没有单源 RSS 地址，无法加入「我的订阅」。
+
 ## 12. 下次开工建议
 
 剩下的都是小项，按需挑：
@@ -424,6 +441,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+2001474 feat: search a built-in blog catalog when adding subscriptions
 10d3c12 feat: reword the ai companion prompt and drop the agent label
 599f3f3 fix: widen the desktop list column so the channels fit one row
 744822a perf: translate chunks in parallel
@@ -477,3 +495,4 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 20. 桌面工作区里能同时开「提灯」面板和 agent，左右并排，列表与正文都能用。（已验证 2026-11-13 03:24，从「+」菜单开出来）
 21. 桌面全屏页宽屏时是两栏，点开文章后左列列表还在，右侧显示正文。（已验证 2026-11-14，截图）
 22. 个人订阅不用手动刷新，15 分钟内会自动更新。（已验证 2026-11-14：日志一轮 3 源 33 条）
+23. 订阅弹窗里搜「阮一峰」，点「订阅」能加上，按钮变「已订阅」。（已验证 2026-11-14）

@@ -358,6 +358,12 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 验证：截图确认列表页、文章页、收藏空态、订阅弹窗；`tsc --noEmit` 0 错误；客户端禁用 API 扫描 0 命中。移动端字号与触控尺寸未实测（chip 在手机上仍为 44 高）。
 
+### 11.13.1 手机上报的三个问题（2026-11-14）
+
+1. **订阅频道把「收藏」挤到第二行**。原因：齿轮按钮占了 chip 行宽度。修法：靴轮移出 chip 行，改成右下角浮动按钮（仅在「订阅」频道显示）。chip 行回到四个频道 + 刷新的一行布局。列表底部加 84 的 padding，避免被浮动按钮遮住。
+2. **订阅弹窗布局散**。原因：内层 `ScrollView` 写了固定 `maxHeight`（260/320），内容少也占满，底部大空白；导入/导出按钮没设 flex，挤在左侧。修法：去掉内层 `ScrollView`，交给 Modal 自己滚动；导入/导出改 `flex: 1` 各占一半。
+3. 手机端未实测，以上按代码推断与桌面截图验证。
+
 ## 12. 下次开工建议
 
 剩下的都是小项，按需挑：
@@ -372,6 +378,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 ## 13. 提交记录
 
 ```
+9ccf7ea fix: keep the channel row on one line and tidy the subscription sheet
 c3eb8ee refactor: drop secondary labels and let the layout carry the ui
 2cea29d docs: record p8 status for the split view, background sync, and cache cap
 587e4a5 feat: cap the cache directory at 100 MB

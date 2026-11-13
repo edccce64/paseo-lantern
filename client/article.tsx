@@ -188,7 +188,8 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         borderRadius: 10,
         backgroundColor: theme.colors.accent,
       },
-      primaryText: { color: theme.colors.accentForeground, fontSize: 15 },
+      primaryText: { color: theme.colors.accentForeground, fontSize: 16, fontWeight: "600" as const },
+      sendButton: { flex: 0, minWidth: 92, paddingHorizontal: 24 },
       ghost: {
         minHeight: 44,
         paddingHorizontal: 18,
@@ -209,8 +210,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         borderColor: theme.colors.border,
       },
       dialog: { gap: 12 },
-      target: { color: theme.colors.foreground, fontSize: 14, lineHeight: 20 },
-      targetName: { color: theme.colors.foreground, fontSize: 15, fontWeight: "600" as const },
       preview: {
         maxHeight: 220,
         borderWidth: 1,
@@ -219,16 +218,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         padding: 12,
       },
       previewText: {
-        color: theme.colors.foregroundMuted,
-        fontSize: 12,
-        lineHeight: 18,
+        color: theme.colors.foreground,
+        fontSize: 13,
+        lineHeight: 20,
       },
       dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const },
     };
   }, [theme, layout.compact]);
 
   async function openCompanion() {
-    const prompt = buildCompanionPrompt(item, markdown ?? null);
+    const prompt = buildCompanionPrompt(item);
     setCompanion({
       open: true,
       prompt,
@@ -457,11 +456,11 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       <View style={styles.bottom}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="陪读"
+          accessibilityLabel="AI 陪读"
           onPress={() => void openCompanion()}
           style={styles.primary}
         >
-          <Text style={styles.primaryText}>陪读</Text>
+          <Text style={styles.primaryText}>AI 陪读</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -488,19 +487,12 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       </View>
 
       <Modal
-        title="陪读"
+        title="AI 陪读"
         open={companion.open}
         onOpenChange={(open) => setCompanion((state) => ({ ...state, open }))}
       >
         <Modal.Content contentContainerStyle={{ padding: 16 }}>
           <View style={styles.dialog}>
-            <View style={{ gap: 4 }}>
-              <Text style={styles.target}>目标 agent</Text>
-              <Text style={styles.targetName}>
-                {companion.loading ? "正在找…" : (companion.agentTitle ?? "没找到")}
-              </Text>
-            </View>
-
             <ScrollView style={styles.preview}>
               <Text style={styles.previewText}>{companion.prompt}</Text>
             </ScrollView>
@@ -521,9 +513,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
                 accessibilityLabel="发送给这个 agent"
                 disabled={!companion.agentId || companion.sending}
                 onPress={() => void sendCompanion()}
-                style={[styles.primary, { flex: 0, paddingHorizontal: 20 }]}
+                style={[styles.primary, styles.sendButton]}
               >
-                <Text style={styles.primaryText}>
+                <Text style={styles.primaryText} numberOfLines={1}>
                   {companion.sending ? "发送中" : "发送"}
                 </Text>
               </Pressable>

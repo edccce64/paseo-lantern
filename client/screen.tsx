@@ -134,6 +134,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         justifyContent: "center" as const,
         borderRadius: 18,
       },
+      fab: {
+        position: "absolute" as const,
+        right: 16,
+        bottom: 20,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        backgroundColor: theme.colors.accent,
+      },
       chip: {
         minHeight: layout.compact ? 44 : 36,
         paddingHorizontal: 12,
@@ -269,17 +280,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         </View>
 
         <View style={styles.chipActions}>
-          {channel === "mine" ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="订阅管理"
-              onPress={() => setSubsOpen(true)}
-              hitSlop={6}
-              style={styles.iconButton}
-            >
-              <Icon name="Settings" size={17} color={theme.colors.foregroundMuted} />
-            </Pressable>
-          ) : null}
           {isStarChannel ? null : (
             <Pressable
               accessibilityRole="button"
@@ -324,7 +324,13 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           renderItem={({ item }) => renderRow(item)}
           refreshing={refreshing}
           onRefresh={() => void refresh()}
-          contentContainerStyle={data.length === 0 ? { flexGrow: 1 } : undefined}
+          contentContainerStyle={
+            data.length === 0
+              ? { flexGrow: 1 }
+              : channel === "mine"
+                ? { paddingBottom: 84 }
+                : undefined
+          }
           ListFooterComponent={
             statusText && data.length > 0 ? (
               <View style={styles.footer}>
@@ -346,6 +352,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           }
         />
       )}
+
+      {channel === "mine" && !isStarChannel ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="订阅管理"
+          onPress={() => setSubsOpen(true)}
+          style={styles.fab}
+        >
+          <Icon name="Settings" size={19} color={theme.colors.accentForeground} />
+        </Pressable>
+      ) : null}
 
       <SubsPanel
         theme={theme}

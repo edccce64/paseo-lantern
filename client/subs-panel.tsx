@@ -3,7 +3,7 @@ import { useRpc } from "@getpaseo/plugin/client";
 import { copyText, Modal, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import {
   subsAddRpc,
   subsExportRpc,
@@ -132,7 +132,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
       ghostText: { color: theme.colors.foreground, fontSize: 14 },
       link: { color: theme.colors.statusDanger, fontSize: 14, paddingVertical: 8 },
       note: { color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 18 },
-      actions: { flexDirection: "row" as const, gap: 10, flexWrap: "wrap" as const },
+      actions: { flexDirection: "row" as const, gap: 10 },
     };
   }, [theme, layout.compact]);
 
@@ -140,9 +140,8 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
 
   return (
     <Modal title="订阅管理" open={open} onOpenChange={onOpenChange}>
-      <Modal.Content contentContainerStyle={{ padding: 16, gap: 12 }}>
-          <ScrollView style={{ maxHeight: layout.compact ? 260 : 320 }}>
-            <View style={{ gap: 0 }}>
+      <Modal.Content contentContainerStyle={{ padding: 16, gap: 16 }}>
+          <View style={{ gap: 0 }}>
               {items.length === 0 ? (
                 <Text style={styles.note}>还没有订阅</Text>
               ) : null}
@@ -168,8 +167,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
                   </View>
                 </View>
               ))}
-            </View>
-          </ScrollView>
+          </View>
 
           <View style={styles.rowLine}>
             <TextInput
@@ -197,7 +195,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
               accessibilityRole="button"
               accessibilityLabel="导入 OPML"
               onPress={() => setShowImport((value) => !value)}
-              style={styles.ghost}
+              style={[styles.ghost, styles.grow]}
             >
               <Text style={styles.ghostText}>{showImport ? "收起导入" : "导入 OPML"}</Text>
             </Pressable>
@@ -215,7 +213,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
                   }
                 })();
               }}
-              style={styles.ghost}
+              style={[styles.ghost, styles.grow]}
             >
               <Text style={styles.ghostText}>导出 OPML</Text>
             </Pressable>

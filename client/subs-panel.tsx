@@ -336,35 +336,6 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
           );
         })}
 
-        <View style={styles.outlineRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="导入 OPML"
-            onPress={() => setShowImport((value) => !value)}
-            style={styles.outlineButton}
-          >
-            <Text style={styles.outlineText}>导入 OPML</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="导出 OPML"
-            onPress={() => {
-              void (async () => {
-                try {
-                  const result = await exportSubs({});
-                  await copyText(result.opml);
-                  toast.show("OPML 已复制到剪贴板", { variant: "success" });
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "导出失败");
-                }
-              })();
-            }}
-            style={styles.outlineButton}
-          >
-            <Text style={styles.outlineText}>导出 OPML</Text>
-          </Pressable>
-        </View>
-
         {showImport ? (
           <View style={{ gap: 10, marginTop: 12 }}>
             <TextInput
@@ -402,6 +373,38 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
       </View>
     );
   }
+
+  /** 导入 / 导出常驻弹层底部，不随列表滚动 */
+  const opmlFooter = (
+    <View style={styles.outlineRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="导入 OPML"
+        onPress={() => setShowImport((value) => !value)}
+        style={styles.outlineButton}
+      >
+        <Text style={styles.outlineText}>导入 OPML</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="导出 OPML"
+        onPress={() => {
+          void (async () => {
+            try {
+              const result = await exportSubs({});
+              await copyText(result.opml);
+              toast.show("OPML 已复制到剪贴板", { variant: "success" });
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "导出失败");
+            }
+          })();
+        }}
+        style={styles.outlineButton}
+      >
+        <Text style={styles.outlineText}>导出 OPML</Text>
+      </Pressable>
+    </View>
+  );
 
   function renderDiscover() {
     const resultCount = suggestions.data?.items.length ?? 0;
@@ -516,6 +519,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
       open={open}
       title="订阅管理"
       onClose={() => onOpenChange(false)}
+      footer={tab === "subs" ? opmlFooter : null}
     >
       <View style={styles.tabBar}>
         {TABS.map((entry) => {

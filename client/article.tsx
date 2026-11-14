@@ -1064,15 +1064,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         open={companion.open}
         title="AI 陪读"
         onClose={() => setCompanion((state) => ({ ...state, open: false }))}
-      >
-        <View style={styles.dialog}>
-          <Text style={styles.dialogHint}>以下内容将发送给最近活跃的 agent</Text>
-          <View style={styles.preview}>
-            <Text style={styles.previewText}>{companion.prompt}</Text>
-          </View>
-
-          {companion.error ? <Text style={styles.noteStrong}>{companion.error}</Text> : null}
-
+        footer={
           <View style={styles.dialogActions}>
             <Pressable
               accessibilityRole="button"
@@ -1094,6 +1086,15 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
               </Text>
             </Pressable>
           </View>
+        }
+      >
+        <View style={styles.dialog}>
+          <Text style={styles.dialogHint}>以下内容将发送给最近活跃的 agent</Text>
+          <View style={styles.preview}>
+            <Text style={styles.previewText}>{companion.prompt}</Text>
+          </View>
+
+          {companion.error ? <Text style={styles.noteStrong}>{companion.error}</Text> : null}
         </View>
       </LanternSheet>
     </View>

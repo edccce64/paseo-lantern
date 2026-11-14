@@ -21,6 +21,8 @@ type Props = {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** 常驻底部的主操作，不随内容滚动 */
+  footer?: ReactNode;
   /** false 时点遮罩不关闭，默认 true */
   dismissible?: boolean;
 };
@@ -29,6 +31,7 @@ type Props = {
  * 主题化的弹层，替换宿主 Modal。
  * 宿主 Modal 的标题栏由 App 主题绘制（白色），会割裂纸色配色；
  * 这里整套自绘：手机是底部 sheet，桌面是居中对话框，遮罩点击关闭，内容区可滚动。
+ * footer 常驻底部，收起状态下也点得到主操作。
  */
 export function LanternSheet({
   theme,
@@ -37,6 +40,7 @@ export function LanternSheet({
   title,
   onClose,
   children,
+  footer,
   dismissible = true,
 }: Props) {
   const p = useMemo(() => palette(theme), [theme]);
@@ -60,12 +64,12 @@ export function LanternSheet({
   const translateY = sheet.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} pointerEvents="box-none">
       <Animated.View style={[styles.overlay, { opacity: overlay }]}>
         <Pressable
           accessibilityViewIsModal
           accessibilityLabel="关闭弹窗"
-          style={StyleSheet.absoluteFill}
+          style={styles.fill}
           onPress={dismissible ? onClose : undefined}
         />
       </Animated.View>
@@ -99,35 +103,38 @@ export function LanternSheet({
           </View>
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, footer ? styles.scrollContentWithFooter : null]}
             keyboardShouldPersistTaps="handled"
           >
             {children}
           </ScrollView>
+          {footer ? (
+            <View style={[styles.footer, compact ? styles.footerMobile : null]}>{footer}</View>
+          ) : null}
         </Animated.View>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
+/** 手机端曾出现弹层按普通布局排列（不覆盖、被屏幕裁切），所以不用 StyleSheet.absoluteFillObject，逐条写死 */
+const FILL = {
+  position: "absolute" as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+};
+
 const styles = StyleSheet.create({
-  root: { ...StyleSheet.absoluteFillObject },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  kavMobile: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "flex-end",
-  },
-  kavDesktop: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
+  root: FILL,
+  fill: FILL,
+  overlay: { ...FILL, backgroundColor: "rgba(0,0,0,0.45)" },
+  kavMobile: { ...FILL, justifyContent: "flex-end" },
+  kavDesktop: { ...FILL, alignItems: "center", justifyContent: "center", padding: 24 },
   sheet: {
     flexDirection: "column",
+    flexShrink: 1,
     overflow: "hidden",
   },
   sheetMobile: {
@@ -176,4 +183,11 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 14,
   },
+  scrollContentWithFooter: { paddingBottom: 8 },
+  footer: {
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: 30,
+  },
+  footerMobile: { paddingBottom: 36 },
 });

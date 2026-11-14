@@ -22,10 +22,13 @@ function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }
 
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+/** NOV 13, 2026 · 20:00 */
 function formatWhen(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** 频道名：从条目自身反推，正文页拿不到列表页的当前频道 */
@@ -432,16 +435,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         gap: 14,
       },
       kickerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
-      badge: {
-        ...LABEL,
-        fontSize: 10,
-        letterSpacing: 1,
-        color: colors.accent,
-        borderWidth: 1,
-        borderColor: colors.accent,
-        paddingHorizontal: 5,
-        paddingVertical: 1,
-      },
       kicker: {
         ...LABEL,
         fontSize: 11,
@@ -456,7 +449,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         fontWeight: "700" as const,
         color: colors.ink,
       },
-      rule: { height: 1, backgroundColor: colors.rule },
       tabs: { flexDirection: "row" as const, gap: 20 },
       tab: { paddingBottom: 4 },
       tabText: {
@@ -480,16 +472,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         lineHeight: Math.round(paraSize * 1.75),
         color: colors.inkSoft,
       },
-      dropRow: { flexDirection: "row" as const, alignItems: "flex-start" as const },
-      dropCap: {
-        fontFamily: FONT.serif,
-        fontSize: 52,
-        // 首字母占两行正文的高度，下沉效果更接近报纸
-        lineHeight: Math.round(paraSize * 1.75) * 2,
-        color: colors.accent,
-        marginRight: 6,
-      },
-      dropRest: { flex: 1 },
       heading: {
         fontFamily: FONT.serif,
         fontWeight: "700" as const,
@@ -826,7 +808,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   /** 正文块渲染；第一段做首字下沉 */
   function renderBlocks(blocks: Block[]): ReactNode[] {
     const out: ReactNode[] = [];
-    let dropCapUsed = false;
     blocks.forEach((block, index) => {
       const key = `b${index}`;
       if (block.kind === "heading") {
@@ -910,26 +891,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         );
         return;
       }
-      // 段落：只有第一个段落做首字下沉
-      if (!dropCapUsed && block.kind === "para") {
-        const tokens = parseInline(block.text);
-        // 找第一个可拆字的纯文本 token
-        const plainIndex = tokens.findIndex((token) => !token.href && !token.code && token.text.length > 0);
-        if (plainIndex >= 0) {
-          dropCapUsed = true;
-          const head = tokens[plainIndex].text.slice(0, 1);
-          const restTokens = tokens.map((token, tokenIndex) =>
-            tokenIndex === plainIndex ? { ...token, text: token.text.slice(1) } : token,
-          );
-          out.push(
-            <View key={key} style={styles.dropRow}>
-              <Text style={styles.dropCap}>{head}</Text>
-              <Text style={[styles.para, styles.dropRest]}>{renderTokens(restTokens, key)}</Text>
-            </View>,
-          );
-          return;
-        }
-      }
+      // 正文首字不放大，保持整段整齐
       out.push(
         <Text key={key} style={styles.para}>
           {renderInline(block.text, key)}
@@ -963,18 +925,15 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
       <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.bodyColumn}>
-          <View style={styles.kickerRow}>
-            {item.badge ? <Text style={styles.badge}>{item.badge}</Text> : null}
-            <Text style={styles.kicker} numberOfLines={1}>
-              {site ?? origin} · {formatWhen(publishedAt)}
-            </Text>
-          </View>
-
           <Text style={styles.title} numberOfLines={3}>
             {item.title}
           </Text>
 
-          <View style={styles.rule} />
+          <View style={styles.kickerRow}>
+            <Text style={styles.kicker} numberOfLines={1}>
+              {site ?? origin} · {formatWhen(publishedAt)}
+            </Text>
+          </View>
 
           {visibleChips.length > 1 ? (
             <View style={styles.tabs}>

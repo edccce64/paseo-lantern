@@ -1,8 +1,8 @@
 # HANDOFF · paseo-lantern（提灯）
 
-最后更新：2026-11-14 17:30
-当前版本：B 版「日报」视觉落地（报纸式列表、正文与订阅弹窗）+ 来源名清洗 + 正文样板行清洗。
-待验证：手机端、深色模式、表格渲染。
+最后更新：2026-11-14 19:15
+当前版本：B 版「日报」视觉定稿（手写体报头、报纸式列表与正文、主题化弹层）+ 来源名清洗 + 正文样板行清洗。
+待验证：手机端整体、深色模式、键盘避让。桌面全部截图验证过。
 
 ---
 
@@ -55,9 +55,15 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 已读：列表未读圆点，打开即标已读 | 已完成（已验证 2026-11-13） |
 | 收藏：正文页底部按钮 + 顶部「收藏」频道 | 已完成（已验证 2026-11-13，落盘 2026-11-14） |
 | 桌面工作区分屏面板：和 agent 并排看同一份界面 | 已完成（已验证） |
-| 桌面宽屏两栏：左列列表 320，右侧读正文，选文章不替换整页 | 已完成（已验证 2026-11-14） |
+| 桌面宽屏两栏：左列列表 380，右侧读正文，选文章不替换整页 | 已完成（已验证 2026-11-14） |
 | 后台定时刷新个人订阅：每 15 分钟一轮 | 已完成（已验证 2026-11-14） |
 | 缓存总量上限 100 MB，超出按最旧淘汰 | 已完成（已验证 2026-11-14） |
+| 报头手写字标 `The Lantern`（内嵌图，随主题变色） | 已完成（桌面已验证 2026-11-14） |
+| 列表搜索：按标题或来源过滤当前频道 | 已完成（桌面已验证） |
+| 来源名清洗：`AI News … | TechCrunch` 只显示 `TechCrunch` | 已完成（已验证） |
+| 主题化弹层：订阅管理 / AI 陪读 / 取消收藏 全部纸色 | 已完成（桌面已验证 2026-11-14） |
+| 订阅管理常驻右下角橙色齿轮 | 已完成（桌面已验证 2026-11-14） |
+| 正文页：居中标题、署名紧跟其下、时间英文格式 | 已完成（桌面已验证 2026-11-14） |
 
 ## 4. 还没做
 
@@ -77,11 +83,14 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 
 | 文件 | 行数 | 作用 |
 | --- | --- | --- |
-| `client/screen.tsx` | 377 | 频道 chips + 图标操作、列表、底部状态；桌面左列 |
-| `client/article.tsx` | 528 | 正文视图：返回、标题、版本 chips、Markdown、底部「AI 陪读 + 收藏 + 原文」、AI 陪读确认弹窗 |
-| `client/subs-panel.tsx` | 250 | 订阅管理弹窗：列表、加源、删源、导入导出 OPML |
+| `client/screen.tsx` | 727 | 报头字标、频道横排、搜索、报纸式列表、桌面右栅「今日速览」、订阅管理浮动按钮、收藏确认 |
+| `client/article.tsx` | 1101 | 正文视图：自建 Markdown 解析与渲染、居中标题与署名、版本切换、译文进度、AI 陪读、收藏 |
+| `client/subs-panel.tsx` | 548 | 订阅管理弹层：已订阅 / 发现两个 tab、RSS 添加、推荐源搜索、OPML 导入导出 |
+| `client/sheet.tsx` | 179 | 主题化弹层 `LanternSheet`，替掉宿主 `Modal`（宿主标题栏改不了颜色） |
+| `client/style.ts` | 96 | 设计令牌：`palette(theme)`、`FONT`、`LABEL`、`SECTION`、`isDark` |
+| `client/wordmark.ts` | 15 | 手写体字标 `The Lantern` 的内嵌 PNG（base64，墨色 / 奶油色两套） |
 | `client/companion.ts` | 19 | AI 陪读提示词拼装（标题、来源、链接，不含正文） |
-| `client/panel.tsx` | 10 | 工作区分屏面板，渲染同一个 `LanternSurface` |
+| `client/panel.tsx` | 7 | 工作区分屏面板，渲染同一个 `LanternSurface` |
 | `client/item.tsx` | 13 | 侧边栏行，图标 `Lamp` |
 
 服务端（跑在 daemon 子进程里）：
@@ -97,7 +106,8 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `server/feeds/parse.ts` | RSS / Atom / RDF 解析、OPML 解析与生成 |
 | `server/qiaomu-article.ts` | 乔木正文与版本 |
 | `server/page-article.ts` | 订阅条目正文抽取 |
-| `server/text/markdown.ts` | HTML→Markdown、Readability 兜底 |
+| `server/text/markdown.ts` | HTML→Markdown（含管状表格规则）、Readability 兜底、`cleanBoilerplate()` 去样板行 |
+| `server/text/source-name.ts` | `cleanSourceName()` 拆站点名与栏目名、`displaySourceName()`、`backfillSourceNames()` 补旧缓存 |
 | `server/text/lang.ts` | 判定正文是否以英文为主（CJK 占比 < 5%） |
 | `server/errors.ts` | 限流/超时/断网/对方报错的统一文案 |
 | `server/translate.ts` | 译文：分段调 DeepSeek，后台任务 + 进度，写缓存 |
@@ -105,7 +115,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `server/sources/aihot.ts` | AIHOT 两个接口 |
 | `server/sources/qiaomu.ts` | 乔木列表与源名映射 |
 | `server/sources/http.ts` | 15 秒超时、ETag、429 处理、JSON 与文本两种 |
-| `server/cache.ts` | 内存 + 磁盘缓存，正文按篇数/天数淘汰，目录按 100 MB 淘汰 |
+| `server/cache.ts` | 内存 + 磁盘缓存，正文按篇数/天数淘汰，目录按 100 MB 淘汰；`readFeedCache()` 读时补 `site` |
 
 共享契约（Zod）：
 
@@ -244,7 +254,10 @@ AIHOT（匿名只读）：
 - 译文的失败重试与多段长文进度：正常路径已验证（2026-11-13 用户实点），失败态没造过。
 - 已读与收藏的跨设备同步：host settings 应跟着 host 走，但没有第二台设备验证。
 - 整个桌面 App 彻底重启后收藏是否还在：只验证到插件重载（2026-11-14），这时 daemon 子进程已重启、settings 从磁盘重读。
-- iPhone 上的实际体验：列表、正文长文滚动、订阅弹窗（底部弹层）、AI 陪读弹窗、译文 chip。
+- iPhone 上的实际体验：手写字标是否被裁、标题 30pt 是否占屏过多、正文长文滚动、弹层（底部 sheet）是否能滚、键盘是否遮输入框、橙色浮动按钮是否挡内容、译文 chip。
+- 深色模式：字标已备奶油色版本，`palette()` 会按 `surface0` 亮度反相，但没实际切过。
+- 表格渲染：解析与样式已写，未在真文章上看到表格。
+- 桌面右栅「今日速览」两个按钮（刷新 / 订阅管理）未逐个实测。
 - 搜索框的中文输入法：改掉 `autoCapitalize` / `autoCorrect` 并加 350ms 防抖后，用输入法逐字打字是否不再转英文。粘贴中文已验证可用。若仍失败，备选是「回车才搜索」或把搜索框移出弹窗（见 11.17）。
 - 真断网时的 `stale` 分支（从没断网测过）。
 - Readability 兜底分支（现有样本乔木都自带 `content`，没走到）。
@@ -480,19 +493,99 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 - 来源名必须在**读缓存时**清洗，否则旧缓存里的条目还是长名。
 - `subscriptions.json` 里的 title 也是 `addsub` 时抓到的长标题，在 `readSubs()` 里就地洗短。
 
-## 12. 下次开工建议
-剩下的都是小项，按需挑：
+## 11.19 报头改手写体字标（2026-11-14 18:00 ~ 18:30）
 
-1. `@` 附件源：`addAttachmentSource` 注册 AIHOT 与乔木，选文章返回固定文本快照。
-2. 侧边栏行未读数：`SidebarRow` 支持 badge 时加上。
-3. 按源配置刷新间隔（SPEC 5.3）。
-4. 等 Paseo 0.16 正式版，把陪读从「直发」改成「写进输入框」。
+用户拿两张参考图（Adobe Handwriting Ernie、Belmonte Ballpoint）说要「潦草的手写字体、要大、有记忆点」。
+
+### 做法：碎成图片内嵌，不是字体
+
+RN 插件运行时加载不了字体文件（没有 expo-font），所以不能写 `fontFamily: "Caveat"`。改成：
+
+1. Chrome headless 用 Caveat 700（Google Fonts，SIL OFL）渲染 `The Lantern`，`--default-background-color=00000000` 出透明底 PNG。
+2. `~/.paseo/daily/trim-wordmark.ps1` 扫 alpha 通道裁掉透明边，同时按目标墨色重着色。
+3. 输出两套：墨色 `#1B1917`、奶油色 `#EDE6D6`，尺寸 915×168，约 16 KB。
+4. base64 内嵌进 `client/wordmark.ts`，界面用 `<Image source={{ uri }} style={{ width, aspectRatio }} />`。
+
+好处：桌面和 iPhone 渲染一模一样，不受系统字体影响。代价：字标不可编辑，要改字得重新生成。
+
+生成素材：`~/.paseo/daily/mock/wordmark.html`、`wm-raw.png`、`wm-ink.png`、`wm-cream.png`。字体候选样张：`mock/fonts.html`、`mock/fonts2.html`。
+
+### 报头删到只剩字标
+
+用户逐条砍掉了：日期与条数行、右上角刷新按钮（下拉已能刷新）、字标下方双线（3px + 1px）。
+
+- `masthead`：`paddingTop: 38`、`paddingBottom: 34`。用户两次要求加大留白、「整个卡片再下来一点，字号不变」。
+- 字标宽：手机 322、桌面 338。
+- 刷新按钮删除后，旋转动画、`formatToday`、`refreshLabel` 一并清掉。
+
+## 11.20 正文页排版（2026-11-14 18:40 ~ 19:10）
+
+用户四轮反馈后的最终形态：
+
+1. 标题下方一行署名：`Cursor Blog · NOV 13, 2026 · 20:00`。时间改英文格式（`formatWhen` 用 `MONTHS` 缩写）。
+2. 标题与署名合成一块（`styles.head`，gap 8），上下各 22 留白。
+3. 去掉首字下沉。用户原话「影响阅读体验，保持正文的整齐性」。
+4. 去掉标题下面的 1px 分隔线。
+5. 去掉正文区左上重复的「精选」徽标（右上已有频道名）。
+6. 标题、署名、原文/译文切换全部居中。
+7. 标题字号：手机 30 / 桌面 38（行高 39 / 49）。取消 `numberOfLines` 限制，否则大字号会把标题尾部切掉。
+
+## 11.21 弹层主题化（2026-11-14 18:55）
+
+问题：宿主 `Modal` 的标题栏是宿主自绘的，颜色跟 App 主题走（白），与纸色内容区割裂。`Modal` 的 API 只有 `title: string`，没有样式入口；试过 `title=""` 也只是把标题弄丢，白底依旧。
+
+做法：新建 `client/sheet.tsx` 的 `LanternSheet`，完全自绘。
+
+- 遮罩 `rgba(0,0,0,0.45)`，点遮罩关闭（`dismissible` 可关）。
+- 手机：底部升起的 sheet，顶部 16 圆角 + 36×4 把手条，最大高度 88%。
+- 桌面：居中对话框 520 宽、8 圆角、最大高度 80%。
+- 自绘标题栏：`FONT.serif` 19 粗体 + 44×44 关闭按钮，无分割线。
+- 内容区 `ScrollView`，左右 22、底 28、gap 14。
+- `KeyboardAvoidingView`（iOS 用 `padding`），保证订阅弹层的输入框不被键盘遮。
+- 入场：遮罩 160ms 淡入，sheet 200ms 上浮 + 淡入。
+
+替换三处：订阅管理、AI 陪读、取消收藏。宿主 `Modal` 已从客户端完全移除。
+
+## 11.22 订阅管理改回浮动按钮（2026-11-14 18:45）
+
+之前因为浮动按钮压住列表内容，改成列表 footer 里的入口。用户在手机上实测后说「在列表最下方了，影响读者操作」，要求常驻右下角。
+
+最终做法：
+
+- `styles.fab`：右下角 18 / 22，56×56 圆角 28，背景 `palette.accent`（橙）。
+- 只在「订阅」频道显示。
+- 列表在「订阅」频道时加 `paddingBottom: 92`，滚动到底部时最后一条不被按钮盖住。
+- footer 只剩状态文字，不再放订阅管理入口（单一入口原则）。
+- 桌面右栅「今日速览」保留「刷新」与「订阅管理」两个按钮。
+
+## 12. 下次开工建议
+
+下一步优先级（按用户实际反馈排）：
+
+1. **手机实机走一遍**。目前桌面已验证，手机完全未验证：手写字标是否裁切、标题 30pt 是否占屏过多、弹层是否能滚、键盘是否遮输入框、橙色浮动按钮是否挡内容。这是当前最大的未知。
+2. 深色模式走一遍。字标已备奶油色版本，`palette()` 会自动反相，但没实际切过主题。
+3. `@` 附件源：`addAttachmentSource` 注册 AIHOT 与乔木，选文章返回固定文本快照。
+4. 侧边栏行未读数：`SidebarRow` 支持 badge 时加上。
+5. 按源配置刷新间隔（SPEC 5.3）。
+6. 等 Paseo 0.16 正式版，把陪读从「直发」改成「写进输入框」。
 
 ---
 
 ## 13. 提交记录
 
 ```
+e42b57b refine: centre the article header and enlarge the title
+e7d811b feat: replace the host modal with a themed sheet
+31d8d3a refine: bind the title and byline into one block
+8e75725 refine: move the byline under the title and drop the drop cap
+8d1af4b refine: give the wordmark more room above and below
+5773a94 refine: let the wordmark own the masthead and drop the refresh button
+856e381 feat: hand-lettered wordmark for the masthead
+a7b8eef refine: use an english masthead and drop the decorative rules
+d51df86 polish: read tables, reset scroll, and drop boilerplate lines
+02b55c2 polish: fill the gaps left in the list, subscriptions, and feed sources
+179a9fd feat: rebuild list, article, and subscription sheet in the gazette style
+6569144 fix: align list titles, unify time format, move subscribe entry to footer
 a264fda fix: let the catalog search accept chinese input
 2001474 feat: search a built-in blog catalog when adding subscriptions
 10d3c12 feat: reword the ai companion prompt and drop the agent label
@@ -533,13 +626,13 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 5. 点「乔木改写」，有则显示中文稿。
 6. 切到「我的订阅」，能看到少数派、阮一峰和 TechCrunch AI 的条目。
 7. 点「订阅管理」，弹窗在手机上从底部升起。
-8. 回列表点「刷新」，状态行时间变化。
+8. 在列表下拉刷新，底部状态文字的时间变化。（报头的刷新按钮已删，只靠下拉）
 9. 打开一篇文章点「AI 陪读」，弹窗只显示提示词，不显示 agent 名。
 10. 点「发送」，那个 agent 收到消息。（已验证 2026-11-12 18:20）
 11. 深色模式下文字颜色正常。
-12. 打开一篇 TechCrunch 英文文章，顶部有「原文 / 译文」两个 chip。（已验证 2026-11-13）
-13. 点「译文」，chip 变成「翻译 x/4」，不用跳任何页面。（已验证 2026-11-13）
-14. 翻完后自动切到中文稿，chip 显示「译文」。（已验证 2026-11-13）
+12. 打开一篇 TechCrunch 英文文章，标题下面有「原文 / 译文」两个切换。（已验证 2026-11-13）
+13. 点「译文」，字号不变但文字变成「翻译 x/4」，不跳页。（已验证 2026-11-13）
+14. 翻完后自动切到中文稿，切换项显示「译文」并带橙色下划线。（已验证 2026-11-13）
 15. 关掉页面再打开同篇，直接点「译文」就能看，不再重新翻。（已验证 2026-11-13）
 16. 未读条目左侧有小圆点，点开后返回列表，圆点消失。（已验证 2026-11-13）
 17. 打开一篇文章点「收藏」，按钮变「已收藏」。（已验证 2026-11-13）
@@ -550,3 +643,9 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 22. 个人订阅不用手动刷新，15 分钟内会自动更新。（已验证 2026-11-14：日志一轮 3 源 33 条）
 23. 订阅弹窗里搜「阮一峰」，点「订阅」能加上，按钮变「已订阅」。（已验证 2026-11-14）
 24. 用输入法在搜索框打中文，候选字不被踢成英文。（未验证，需用户实机试）
+25. 报头手写字标 `The Lantern` 在 375pt 屏上完整显示、不被裁切。（桌面已验证，手机未验证）
+26. 正文标题 30pt 居中、署名紧跟其下、上下留白对称。（桌面已验证，手机未验证）
+27. 弹层（订阅管理 / AI 陪读 / 取消收藏）整体纸色，无白色标题栏。（桌面已验证，手机未验证）
+28. 订阅频道右下角橙色齿轮常驻，滚到底部时最后一条不被遮挡。（桌面已验证，手机未验证）
+29. 手机键盘弹出时，订阅弹层里的搜索与 RSS 输入框不被遮。（未验证）
+30. 深色模式下字标自动换成奶油色版本。（代码已备，未验证）

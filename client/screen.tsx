@@ -148,9 +148,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       masthead: {
         backgroundColor: p.paper,
         paddingHorizontal: horizontal,
-        paddingTop: 20,
-        // 字标与频道之间留足空白，字标才突出
-        paddingBottom: 26,
+        // 上多留一截让字标往下坐，上下都对呼吸感
+        paddingTop: 38,
+        paddingBottom: 34,
         alignItems: "center" as const,
       },
       wordmarkImage: {

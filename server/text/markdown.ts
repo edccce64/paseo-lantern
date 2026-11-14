@@ -74,16 +74,23 @@ export function htmlToMarkdown(html: string): string {
 /** 新闻站常见的样板行：抽正文时会带上，读者不需要 */
 const BOILERPLATE = [
   /^in brief$/i,
+  /^in this article$/i,
   /^posted:?$/i,
   /^posted:.*$/i,
+  /^\d+\s*min(ute)?s?\s*read$/i,
+  /^\d+\s*分钟阅读$/,
   /^share this article.*$/i,
   /^sign up .*$/i,
   /^continue reading.*$/i,
   /^read more.*$/i,
   /^related( articles| stories| reads)?:?$/i,
   /^advertisement$/i,
+  /^your browser does not support.*$/i,
   /^\d{1,2}:\d{2}\s*(AM|PM)\b.*$/i,
 ];
+
+/** 目录导航的锚点链接行：「- [What happened](#what-happened)」，正文里是噪声 */
+const TOC_LINE = /^\s*[-*+]\s+\[[^\]]+\]\(#[^)]*\)\s*$/;
 
 /**
  * 去掉样板行，并发时间这类无信息行。
@@ -100,6 +107,7 @@ export function cleanBoilerplate(markdown: string, origin?: string | null): stri
       continue;
     }
     if (source.length > 0 && trimmed === source) continue;
+    if (TOC_LINE.test(trimmed)) continue;
     if (BOILERPLATE.some((pattern) => pattern.test(trimmed))) continue;
     kept.push(line);
   }

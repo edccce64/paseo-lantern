@@ -2,8 +2,8 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import { FlatList, Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Image, Pressable, Text, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Image, Pressable, Text, TextInput, View } from "react-native";
 import { type ChannelId, type FeedItem, type FeedState, listRpc } from "../shared/feed";
 import {
   EMPTY_STATE,
@@ -47,13 +47,6 @@ function formatTime(iso: string): string {
     return `${date.getMonth() + 1}月${date.getDate()}日`;
   }
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-}
-
-const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-
-/** 2026年11月14日 · 星期六 */
-function formatToday(now: Date): string {
-  return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · ${WEEKDAYS[now.getDay()]}`;
 }
 
 /** 11月14日 */
@@ -131,28 +124,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  // 刷新时图标转圈
-  const spin = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!refreshing) {
-      spin.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: 900,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [refreshing, spin]);
-  const spinStyle = {
-    transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }],
-  };
-
   const colors = useMemo(() => palette(theme), [theme]);
   const wordmark = isDark(theme) ? WORDMARK_CREAM : WORDMARK_INK;
 
@@ -177,29 +148,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       masthead: {
         backgroundColor: p.paper,
         paddingHorizontal: horizontal,
-        paddingTop: 14,
-        paddingBottom: 10,
+        paddingTop: 20,
+        // 字标与频道之间留足空白，字标才突出
+        paddingBottom: 26,
         alignItems: "center" as const,
       },
-      vol: { ...LABEL, color: p.muted, textAlign: "center" as const },
       wordmarkImage: {
-        marginTop: 6,
         // 手写体字标：手机与桌面同样大，占满可用宽度的大半
         width: layout.compact ? 322 : 338,
         aspectRatio: WORDMARK_RATIO,
         alignSelf: "center" as const,
       },
-      refreshButton: {
-        position: "absolute" as const,
-        right: 10,
-        top: 6,
-        minHeight: 32,
-        paddingHorizontal: 6,
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-      },
-      refreshLabel: { fontFamily: FONT.sans, fontSize: 12, color: p.accent },
 
       // 栏目横排：不加竖分隔线，只靠留白与选中色区分
       channelRow: {
@@ -511,31 +470,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const listPane = (
     <View style={styles.screen}>
       <View style={styles.masthead}>
-        <Text style={styles.vol}>
-          {layout.compact
-            ? `${formatTodayShort(today)} · ${rawData.length} 条`
-            : `${formatToday(today)} · 今日 ${rawData.length} 条`}
-        </Text>
         <Image source={{ uri: wordmark }} style={styles.wordmarkImage} resizeMode="contain" />
-        {isStarChannel ? null : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="刷新"
-            disabled={refreshing}
-            onPress={() => void refresh()}
-            hitSlop={6}
-            style={styles.refreshButton}
-          >
-            <Animated.View style={spinStyle}>
-              <Icon
-                name="RotateCw"
-                size={17}
-                color={refreshing ? colors.accent : colors.muted}
-              />
-            </Animated.View>
-            {refreshing ? <Text style={styles.refreshLabel}>刷新中</Text> : null}
-          </Pressable>
-        )}
       </View>
 
       <View style={styles.channelRow}>

@@ -413,8 +413,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         justifyContent: "space-between" as const,
         paddingHorizontal: horizontal - 12,
         height: 48,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.rule,
       },
       back: { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const },
       topChannel: {
@@ -553,8 +551,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       },
       noteStrong: { color: colors.ink, fontSize: 13.5 },
       bottom: {
-        borderTopWidth: 1,
-        borderTopColor: colors.rule,
         backgroundColor: colors.paper,
         paddingHorizontal: horizontal,
         paddingVertical: 10,

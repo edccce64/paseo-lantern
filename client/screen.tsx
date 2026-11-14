@@ -181,11 +181,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       },
       vol: { ...LABEL, color: p.muted, textAlign: "center" as const },
       wordmark: {
-        marginTop: 6,
+        marginTop: 4,
         fontFamily: FONT.serif,
-        fontSize: layout.compact ? 28 : 26,
+        fontSize: layout.compact ? 26 : 25,
         fontWeight: "700" as const,
-        letterSpacing: 6,
+        // 报纸报头的字距拉开，版面才站得住
+        letterSpacing: 7,
         color: p.ink,
         textAlign: "center" as const,
       },
@@ -200,21 +201,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         gap: 6,
       },
       refreshLabel: { fontFamily: FONT.sans, fontSize: 12, color: p.accent },
-      // 报头底部的双线：一条 3px 墨线，紧接一条 1px 墨线
-      ruleThick: { height: 3, backgroundColor: p.ink },
-      ruleThin: { height: 1, backgroundColor: p.ink },
 
-      // 栏目横排
+      // 栏目横排：不加竖分隔线，只靠留白与选中色区分
       channelRow: {
         flexDirection: "row" as const,
         backgroundColor: p.paper,
+        paddingTop: 2,
       },
       channelCell: {
         flex: 1,
         alignItems: "center" as const,
         paddingVertical: 10,
-        borderRightWidth: 1,
-        borderRightColor: p.rule,
       },
       channelText: { ...SECTION, color: p.ink },
       channelTextActive: { ...SECTION, color: p.accent, fontWeight: "700" as const },
@@ -222,15 +219,13 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       channelMarks: { flexDirection: "row" as const, height: 3, backgroundColor: p.paper },
       channelMark: { flex: 1 },
       channelMarkActive: { flex: 1, backgroundColor: p.accent },
-      channelRule: { height: 1, backgroundColor: p.ink },
+      channelSpacer: { height: 8, backgroundColor: p.paper },
 
       // 搜索
       searchWrap: {
         paddingHorizontal: horizontal,
         paddingVertical: 10,
         backgroundColor: p.paper,
-        borderBottomWidth: 1,
-        borderBottomColor: p.rule,
       },
       searchRow: {
         flexDirection: "row" as const,
@@ -303,7 +298,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       },
       bylineText: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 0.6, color: p.muted },
       bylineSource: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 0.6, color: p.muted, flexShrink: 1 },
-      bylineHair: { flex: 1, height: 1, backgroundColor: p.rule },
+      bylineSep: { fontFamily: FONT.mono, fontSize: 11, color: p.muted, opacity: 0.6 },
 
       // 空态与错误
       state: { padding: 32, alignItems: "center" as const, gap: 10 },
@@ -361,8 +356,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         alignItems: "center" as const,
         justifyContent: "space-between" as const,
         gap: 12,
-        borderTopWidth: 1,
-        borderTopColor: p.rule,
       },
       footerText: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 0.6, color: p.muted },
       footerEntry: {
@@ -465,7 +458,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
             <Text style={styles.bylineSource} numberOfLines={1}>
               {source}
             </Text>
-            <View style={styles.bylineHair} />
+            <Text style={styles.bylineSep}>·</Text>
           </>
         ) : null}
         <Text style={styles.bylineText} numberOfLines={1}>
@@ -524,7 +517,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
             ? `${formatTodayShort(today)} · ${rawData.length} 条`
             : `${formatToday(today)} · 今日 ${rawData.length} 条`}
         </Text>
-        <Text style={styles.wordmark}>提灯日报</Text>
+        <Text style={styles.wordmark}>THE LANTERN</Text>
         {isStarChannel ? null : (
           <Pressable
             accessibilityRole="button"
@@ -545,11 +538,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           </Pressable>
         )}
       </View>
-      <View style={styles.ruleThick} />
-      <View style={styles.ruleThin} />
 
       <View style={styles.channelRow}>
-        {CHANNELS.map((entry, index) => {
+        {CHANNELS.map((entry) => {
           const active = entry.id === channel;
           return (
             <Pressable
@@ -557,10 +548,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               accessibilityRole="button"
               accessibilityLabel={`频道：${entry.full}`}
               onPress={() => setChannel(entry.id)}
-              style={[
-                styles.channelCell,
-                { borderRightWidth: index === CHANNELS.length - 1 ? 0 : 1 },
-              ]}
+              style={styles.channelCell}
             >
               <Text style={active ? styles.channelTextActive : styles.channelText}>
                 {entry.title}
@@ -577,7 +565,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           />
         ))}
       </View>
-      <View style={styles.channelRule} />
+      <View style={styles.channelSpacer} />
 
       {rawData.length > 0 ? (
         <View style={styles.searchWrap}>

@@ -1,7 +1,9 @@
 {
   "name": "paseo-lantern",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "提灯 · The Lantern — 在 Paseo 里读 AIHOT 与乔木的 AI 资讯，一键把手边的 agent 叫来陪读。",
+  "license": "MIT",
   "files": [
     "paseo-plugin.json",
     "OVERVIEW.md",

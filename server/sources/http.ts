@@ -5,6 +5,9 @@ export type JsonResponse<T> =
 
 const TIMEOUT_MS = 15_000;
 
+/** 对外请求统一用这个 UA，括号里是仓库地址 */
+const USER_AGENT = "paseo-lantern/0.1 (+https://github.com/edccce64/paseo-lantern)";
+
 export type TextResponse =
   | { kind: "ok"; text: string; etag: string | null }
   | { kind: "not-modified" }
@@ -14,7 +17,7 @@ export async function getText(url: string, etag: string | null): Promise<TextRes
   const headers: Record<string, string> = {
     accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
     "accept-encoding": "gzip, br",
-    "user-agent": "paseo-lantern/0.1 (+https://paseo.sh)",
+    "user-agent": USER_AGENT,
   };
   if (etag) headers["if-none-match"] = etag;
 
@@ -43,7 +46,7 @@ export async function getJson<T>(
   const headers: Record<string, string> = {
     accept: "application/json",
     "accept-encoding": "gzip, br",
-    "user-agent": "paseo-lantern/0.1 (+https://paseo.sh)",
+    "user-agent": USER_AGENT,
   };
   if (etag) headers["if-none-match"] = etag;
 

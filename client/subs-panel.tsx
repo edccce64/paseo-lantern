@@ -510,7 +510,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   }
 
   return (
-    <Modal title="订阅管理" open={open} onOpenChange={onOpenChange}>
+    <Modal title="" open={open} onOpenChange={onOpenChange}>
       <Modal.Content
         style={{ backgroundColor: styles.p.paper }}
         contentContainerStyle={{ padding: 0, gap: 0 }}

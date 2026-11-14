@@ -434,11 +434,14 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         alignSelf: "center" as const,
         gap: 14,
       },
-      kickerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+      // 标题与署名当成一整块，上下留同样的空白把它抬出来
+      head: { gap: 8, marginTop: 22, marginBottom: 22 },
+      kickerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
       kicker: {
         ...LABEL,
-        fontSize: 11,
-        lineHeight: 18,
+        fontSize: 10,
+        lineHeight: 16,
+        letterSpacing: 1.4,
         color: colors.muted,
         flexShrink: 1,
       },
@@ -925,14 +928,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
       <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.bodyColumn}>
-          <Text style={styles.title} numberOfLines={3}>
-            {item.title}
-          </Text>
-
-          <View style={styles.kickerRow}>
-            <Text style={styles.kicker} numberOfLines={1}>
-              {site ?? origin} · {formatWhen(publishedAt)}
+          <View style={styles.head}>
+            <Text style={styles.title} numberOfLines={3}>
+              {item.title}
             </Text>
+
+            <View style={styles.kickerRow}>
+              <Text style={styles.kicker} numberOfLines={1}>
+                {site ?? origin} · {formatWhen(publishedAt)}
+              </Text>
+            </View>
           </View>
 
           {visibleChips.length > 1 ? (

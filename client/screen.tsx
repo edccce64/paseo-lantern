@@ -324,6 +324,18 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         paddingLeft: 8,
       },
       footerEntryText: { fontFamily: FONT.sans, fontSize: 12, color: p.ink },
+      // 常驻右下角：随时可点，不随列表滚动跑掉
+      fab: {
+        position: "absolute" as const,
+        right: 18,
+        bottom: 22,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        backgroundColor: p.accent,
+      },
 
       // 桌面右栏：今日速览
       brief: {
@@ -554,24 +566,15 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           refreshing={isStarChannel ? false : refreshing}
           onRefresh={isStarChannel ? undefined : () => void refresh()}
-          contentContainerStyle={data.length === 0 ? { flexGrow: 1 } : undefined}
+          contentContainerStyle={
+            data.length === 0 ? { flexGrow: 1 } : channel === "mine" ? { paddingBottom: 92 } : undefined
+          }
           ListFooterComponent={
             rawData.length > 0 ? (
               <View style={styles.footer}>
-                <Text style={[styles.footerText, { flex: 1 }]} numberOfLines={1}>
+                <Text style={styles.footerText} numberOfLines={1}>
                   {statusText}
                 </Text>
-                {channel === "mine" ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="订阅管理"
-                    onPress={() => setSubsOpen(true)}
-                    style={styles.footerEntry}
-                  >
-                    <Icon name="Settings" size={15} color={colors.ink} />
-                    <Text style={styles.footerEntryText}>订阅管理</Text>
-                  </Pressable>
-                ) : null}
               </View>
             ) : null
           }
@@ -605,6 +608,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           }
         />
       )}
+
+      {channel === "mine" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="订阅管理"
+          onPress={() => setSubsOpen(true)}
+          style={styles.fab}
+        >
+          <Icon name="Settings" size={22} color={colors.paper} />
+        </Pressable>
+      ) : null}
 
       <SubsPanel
         theme={theme}

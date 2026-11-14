@@ -2,7 +2,7 @@
 
 - 版本：v1（2026-11-12）
 - 状态：需求已确认，未开始编码
-- 项目目录：`C:\Users\edcccc\.paseo\projects\paseo-lantern`
+- 项目目录：本仓库目录
 - 插件 id：`paseo-lantern`　显示名：`提灯`（副标题：资讯陪读）
 - 目标宿主：本机 Paseo daemon `0.15.4`
 
@@ -31,7 +31,7 @@
 
 - daemon `0.15.4`，托管于桌面端，监听 `127.0.0.1:6767`，`serverId: srv_pnMpyAxcMJTR`。
 - CLI 路径 `D:\paseo\resources\bin\paseo.cmd`。它**不在** PATH 里，`paseo` 直接调用会 command not found。
-- 已有同类工程 `C:\Users\edcccc\projects\paseo-idealoft`，`requirements.paseo: ">=0.15.4"`，可作结构参照。
+- 已有同类工程属性可参照：`requirements.paseo: ">=0.15.4"`。
 - 乔木源码 `joeseesun/qmreader`、`qmreader-ios`、`qiaomu-ai-rss` 均为 MIT。
 - `qiaomu-rss-dsh` 为 **GPL-3.0-only**。本项目只照功能重写，**不复制其代码**。
 - AIHOT 引擎 `KKKKhazix/AIHOT` 为 MIT，且提供匿名只读 API。
@@ -292,10 +292,10 @@ await composer.focus();
 每期结束跑：
 
 ```bash
-cd C:\Users\edcccc\.paseo\projects\paseo-lantern
+cd <本仓库目录>
 npx tsc --noEmit
-"D:\paseo\resources\bin\paseo.cmd" plugin reload paseo-lantern
-"D:\paseo\resources\bin\paseo.cmd" plugin logs paseo-lantern
+paseo plugin reload paseo-lantern
+paseo plugin logs paseo-lantern
 rg -n "document\.|window\.|localStorage|<[a-z]+[ >]|className=|onClick=" client/
 ```
 

@@ -1,3 +1,14 @@
 node_modules/
+dist/
+build/
+coverage/
 *.log
+*.tmp
+*.tsbuildinfo
+.env
+.env.*
 .DS_Store
+Thumbs.db
+.expo/
+.vscode/
+.idea/

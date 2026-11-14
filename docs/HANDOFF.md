@@ -13,7 +13,7 @@
 在 Paseo 里读新闻：AIHOT 精选、AIHOT 热点、乔木精选、我的订阅。读到不懂的地方，点「陪读」把文章交给 agent 解释。
 
 - 规格书：`docs/SPEC.md`
-- 项目目录：`C:\Users\edcccc\.paseo\projects\paseo-lantern`
+- 项目目录：本仓库目录
 - 插件 id：`paseo-lantern`
 - 侧边栏位置：头部组，Idealoft 下方
 
@@ -22,12 +22,12 @@
 ## 2. 每次开工先跑这两条
 
 ```bash
-cd C:\Users\edcccc\.paseo\projects\paseo-lantern
+cd <本仓库目录>
 npx tsc --noEmit
-"D:\paseo\resources\bin\paseo.cmd" plugin reload paseo-lantern
+paseo plugin reload paseo-lantern
 ```
 
-`paseo` 不在 PATH，必须写全路径 `D:\paseo\resources\bin\paseo.cmd`。
+Windows 上如果 `paseo` 不在 PATH，用安装目录里的 `paseo.cmd` 全路径。
 
 其他常用：
 
@@ -131,7 +131,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 入口：
 
 - `index.client.tsx`：注册屏幕 `lantern`、工作区分屏面板 `lantern`（图标 `Lamp`）、侧边栏头部行。
-- `index.server.ts`：注册 11 个 RPC，并 `registerSettings(lanternStateSettings)`。
+- `index.server.ts`：注册 12 个 RPC，并 `registerSettings(lanternStateSettings)`。
 
 ---
 
@@ -232,7 +232,7 @@ AIHOT（匿名只读）：
 3. **`@types/node` 必须装，并在 `tsconfig.compilerOptions.types` 加 `"node"`。** 否则 `server/` 下所有 `node:fs` 报 TS2307。只加 node，不加 DOM，符合跨端规则。
 4. **横向 `ScrollView` 做 chip 条会塌陷。** 切到第三个频道两次后整条高度变 0、消失。试过 `flexGrow:0` + 固定高度、`contentContainerStyle` 带 height，都不稳。最终改成 `View` + `flexDirection:row` + `flexWrap:wrap`，稳定。四个中文 chip 在 375 宽会换行。
 5. **`PluginScreenProps` 没有 `openScreen`。** 只有 `params` / `navigation` / `theme` / `host` / `layout`。插件内多级页面只能一个 screen + 内部 state 切换，返回按钮自己画。`openScreen` 只在 sidebar item、popover、Command Center、pill 的回调里有。
-6. **桌面 UI 自动化点长中文可访问名会失败。** `clickname.ps1 -Name "长中文标题"` 报 not found（参数编码随控制台 codepage 变）。短名可用。长名改用 `tap.ps1 -X -Y` 点坐标；更稳的做法是把名字写进 UTF-8 文件，脚本用 `Get-Content -Encoding UTF8` 读（`C:\tmp\clickfile.ps1`）。
+6. **用桌面 UI 自动化点长中文可访问名会失败。** 直接传长中文名报 not found（参数编码随控制台 codepage 变）。短名可用。长名改用坐标点击；更稳的做法是把名字写进 UTF-8 文件再读。
 7. **PowerShell 读中文文件默认按 ANSI。** `Get-Clipboard` / `Get-Content` 会把 UTF-8 中文变成「灏戞暟娲?」这类乱码，导入 OPML 时订阅标题就乱了。验证中文要用 `[IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)`。这是测试工具的问题，不是插件的问题。
 8. **重载插件会关掉已打开的「提灯」标签页。** 每次 reload 后要重新点侧边栏进页面。否则后续点击会打到 Idealoft 的界面上。
 9. **`Markdown` 组件里的图片点了会开宿主图片预览**，全屏挡住界面，按 Esc 关闭。不是 bug。
@@ -446,7 +446,7 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 
 ## 11.18 B 版「日报」视觉落地（2026-11-14 17:30）
 
-用户从三版模版里选了 B 版（参考 THE GAZETTE：纸色底、墨色衷线大标题、橙色点缀、报头、栏目横排、首字下沉）。模版原稿在 `~/.paseo/daily/mock/b-gazette.html`。
+用户从三版模版里选了 B 版（参考 THE GAZETTE：纸色底、墨色衷线大标题、橙色点缀、报头、栏目横排、首字下沉）。模版原稿没有进仓库。
 
 设计令牌：`client/style.ts`。
 
@@ -502,13 +502,13 @@ AIHOT 两个频道的英文条目也加了译文 chip，和「我的订阅」同
 RN 插件运行时加载不了字体文件（没有 expo-font），所以不能写 `fontFamily: "Caveat"`。改成：
 
 1. Chrome headless 用 Caveat 700（Google Fonts，SIL OFL）渲染 `The Lantern`，`--default-background-color=00000000` 出透明底 PNG。
-2. `~/.paseo/daily/trim-wordmark.ps1` 扫 alpha 通道裁掉透明边，同时按目标墨色重着色。
+2. 用小脚本扫 alpha 通道裁掉透明边，同时按目标墨色重着色。
 3. 输出两套：墨色 `#1B1917`、奶油色 `#EDE6D6`，尺寸 915×168，约 16 KB。
 4. base64 内嵌进 `client/wordmark.ts`，界面用 `<Image source={{ uri }} style={{ width, aspectRatio }} />`。
 
 好处：桌面和 iPhone 渲染一模一样，不受系统字体影响。代价：字标不可编辑，要改字得重新生成。
 
-生成素材：`~/.paseo/daily/mock/wordmark.html`、`wm-raw.png`、`wm-ink.png`、`wm-cream.png`。字体候选样张：`mock/fonts.html`、`mock/fonts2.html`。
+生成素材（样张页与中间图）没有进仓库，仓库里只有 `client/wordmark.ts` 里的内嵌 base64。
 
 ### 报头删到只剩字标
 

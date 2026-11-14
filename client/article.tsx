@@ -436,24 +436,36 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         gap: 14,
       },
       // 标题与署名当成一整块，上下留同样的空白把它抬出来
-      head: { gap: 8, marginTop: 22, marginBottom: 22 },
-      kickerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
+      // 标题、署名、版本切换一律居中，像报刊标题那样站中轴
+      head: { gap: 8, marginTop: 22, marginBottom: 22, alignItems: "center" as const },
+      kickerRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        gap: 6,
+      },
       kicker: {
         ...LABEL,
         fontSize: 10,
         lineHeight: 16,
         letterSpacing: 1.4,
         color: colors.muted,
+        textAlign: "center" as const,
         flexShrink: 1,
       },
       title: {
         fontFamily: FONT.serif,
-        fontSize: compact ? 26 : 32,
-        lineHeight: compact ? 34 : 42,
+        fontSize: compact ? 30 : 38,
+        lineHeight: compact ? 39 : 49,
         fontWeight: "700" as const,
         color: colors.ink,
+        textAlign: "center" as const,
       },
-      tabs: { flexDirection: "row" as const, gap: 20 },
+      tabs: {
+        flexDirection: "row" as const,
+        gap: 20,
+        justifyContent: "center" as const,
+      },
       tab: { paddingBottom: 4 },
       tabText: {
         fontFamily: FONT.sans,
@@ -929,7 +941,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.bodyColumn}>
           <View style={styles.head}>
-            <Text style={styles.title} numberOfLines={3}>
+            <Text style={styles.title}>
               {item.title}
             </Text>
 

@@ -3,7 +3,7 @@ import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import { FlatList, Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, Text, TextInput, View } from "react-native";
+import { Animated, Easing, Image, Pressable, Text, TextInput, View } from "react-native";
 import { type ChannelId, type FeedItem, type FeedState, listRpc } from "../shared/feed";
 import {
   EMPTY_STATE,
@@ -13,7 +13,8 @@ import {
   lanternStateSettings,
 } from "../shared/settings";
 import { ArticleView } from "./article";
-import { FONT, LABEL, SECTION, palette } from "./style";
+import { FONT, LABEL, SECTION, isDark, palette } from "./style";
+import { WORDMARK_CREAM, WORDMARK_INK, WORDMARK_RATIO } from "./wordmark";
 import { SubsPanel } from "./subs-panel";
 
 /** 频道来自服务端，收藏是本地伪频道：直接用 settings 里的快照渲染 */
@@ -153,6 +154,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   };
 
   const colors = useMemo(() => palette(theme), [theme]);
+  const wordmark = isDark(theme) ? WORDMARK_CREAM : WORDMARK_INK;
 
   const styles = useMemo(() => {
     const p = colors;
@@ -180,20 +182,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         alignItems: "center" as const,
       },
       vol: { ...LABEL, color: p.muted, textAlign: "center" as const },
-      wordmark: {
-        marginTop: 4,
-        fontFamily: FONT.serif,
-        fontSize: layout.compact ? 26 : 25,
-        fontWeight: "700" as const,
-        // 报纸报头的字距拉开，版面才站得住
-        letterSpacing: 7,
-        color: p.ink,
-        textAlign: "center" as const,
+      wordmarkImage: {
+        marginTop: 6,
+        // 手写体字标：手机与桌面同样大，占满可用宽度的大半
+        width: layout.compact ? 322 : 338,
+        aspectRatio: WORDMARK_RATIO,
+        alignSelf: "center" as const,
       },
       refreshButton: {
         position: "absolute" as const,
-        right: 12,
-        bottom: 10,
+        right: 10,
+        top: 6,
         minHeight: 32,
         paddingHorizontal: 6,
         flexDirection: "row" as const,
@@ -517,7 +516,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
             ? `${formatTodayShort(today)} · ${rawData.length} 条`
             : `${formatToday(today)} · 今日 ${rawData.length} 条`}
         </Text>
-        <Text style={styles.wordmark}>THE LANTERN</Text>
+        <Image source={{ uri: wordmark }} style={styles.wordmarkImage} resizeMode="contain" />
         {isStarChannel ? null : (
           <Pressable
             accessibilityRole="button"

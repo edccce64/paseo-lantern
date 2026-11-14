@@ -2,7 +2,7 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { openExternalUrl, usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { type ArticleVersion, articleRpc } from "../shared/article";
@@ -53,7 +53,8 @@ type Block =
   | { kind: "list"; ordered: boolean; items: string[] }
   | { kind: "code"; text: string }
   | { kind: "image"; src: string; alt: string }
-  | { kind: "rule" };
+  | { kind: "rule" }
+  | { kind: "table"; header: string[]; rows: string[][] };
 
 const INLINE_RE = /(!?\[[^\]]*\]\([^)\s]+\)|\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g;
 
@@ -124,6 +125,23 @@ function normalizeMarkdown(source: string): string {
   return out;
 }
 
+/** 管状表格的分隔行：| --- | :-- | ---: | 形式 */
+function isTableSeparator(line: string): boolean {
+  const t = line.trim();
+  if (!t.startsWith("|") || !t.endsWith("|")) return false;
+  const cells = t.slice(1, -1).split("|");
+  if (cells.length === 0) return false;
+  return cells.every((cell) => /^:?-+:?$/.test(cell.trim()));
+}
+
+/** 拆一行表格单元格，去掉首尾管道并去掉空白 */
+function splitTableRow(line: string): string[] {
+  let inner = line.trim();
+  if (inner.startsWith("|")) inner = inner.slice(1);
+  if (inner.endsWith("|")) inner = inner.slice(0, -1);
+  return inner.split("|").map((cell) => cell.trim());
+}
+
 function parseBlocks(source: string): Block[] {
   const lines = normalizeMarkdown(source).replace(/\r\n/g, "\n").split("\n");
   const blocks: Block[] = [];
@@ -156,6 +174,24 @@ function parseBlocks(source: string): Block[] {
       blocks.push({ kind: "rule" });
       i += 1;
       continue;
+    }
+    // 管状表格：以 | 开头，且下一非空行是 |---|---| 形式的分隔行
+    if (trimmed.startsWith("|")) {
+      let sep = i + 1;
+      while (sep < lines.length && lines[sep].trim().length === 0) sep += 1;
+      if (sep < lines.length && isTableSeparator(lines[sep])) {
+        const header = splitTableRow(trimmed);
+        const rows: string[][] = [];
+        i = sep + 1;
+        while (i < lines.length) {
+          const t = lines[i].trim();
+          if (t.length === 0 || !t.startsWith("|")) break;
+          rows.push(splitTableRow(t));
+          i += 1;
+        }
+        blocks.push({ kind: "table", header, rows });
+        continue;
+      }
     }
     const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading) {
@@ -359,6 +395,12 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
   const colors = useMemo(() => palette(theme), [theme]);
   const compact = layout.compact;
+  const scrollRef = useRef<ScrollView>(null);
+
+  // 换文章或换版本时回到顶部
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [item.id, version]);
 
   const styles = useMemo(() => {
     const horizontal = compact ? 16 : 28;
@@ -491,6 +533,18 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         backgroundColor: colors.panel,
       },
       imageAlt: { color: colors.muted, fontSize: 11, fontFamily: FONT.mono, letterSpacing: 0.5 },
+      tableWrap: { marginVertical: 12 },
+      table: { borderWidth: 1, borderColor: colors.rule },
+      tableRow: { flexDirection: "row" as const },
+      tableRowDivider: { borderTopWidth: 1, borderTopColor: colors.rule },
+      tableCell: { width: 90, padding: 6 },
+      tableCellText: {
+        fontFamily: FONT.sans,
+        fontSize: 13,
+        lineHeight: 19,
+        color: colors.inkSoft,
+      },
+      tableHeaderText: { fontWeight: "700" as const, color: colors.ink },
       note: {
         fontFamily: FONT.sans,
         color: colors.muted,
@@ -829,6 +883,37 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         );
         return;
       }
+      if (block.kind === "table") {
+        const columns = block.header.length;
+        out.push(
+          <View key={key} style={styles.tableWrap}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={[styles.table, { minWidth: columns * 90 }]}>
+                {[block.header, ...block.rows].map((row, rowIndex) => (
+                  <View
+                    key={`${key}-r${rowIndex}`}
+                    style={[styles.tableRow, rowIndex > 0 ? styles.tableRowDivider : null]}
+                  >
+                    {row.map((cell, cellIndex) => (
+                      <View key={`${key}-${rowIndex}-${cellIndex}`} style={styles.tableCell}>
+                        <Text
+                          style={[
+                            styles.tableCellText,
+                            rowIndex === 0 ? styles.tableHeaderText : null,
+                          ]}
+                        >
+                          {renderInline(cell, `${key}-${rowIndex}-${cellIndex}`)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </View>,
+        );
+        return;
+      }
       // 段落：只有第一个段落做首字下沉
       if (!dropCapUsed && block.kind === "para") {
         const tokens = parseInline(block.text);
@@ -880,7 +965,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         </Text>
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+      <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.bodyColumn}>
           <View style={styles.kickerRow}>
             {item.badge ? <Text style={styles.badge}>{item.badge}</Text> : null}

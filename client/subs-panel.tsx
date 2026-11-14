@@ -2,8 +2,9 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { copyText, Modal, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ElementRef } from "react";
+import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import {
   subsAddRpc,
   subsExportRpc,
@@ -48,11 +49,20 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   /** 正在等第二次确认的订阅 id */
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
+  const searchRef = useRef<ElementRef<typeof TextInput>>(null);
+  const { width } = useWindowDimensions();
+  const narrow = width < 340;
+
   // 输入法组字时不要每敲一个拼音就发请求；停手 350ms 再搜
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(search), 350);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // 重新打开弹窗时复位删除确认态，避免残留的「删除？」行
+  useEffect(() => {
+    if (open) setConfirmId(null);
+  }, [open]);
 
   const query = useQuery({
     queryKey: ["lantern-subs"],
@@ -125,7 +135,8 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
       tab: {
         flex: 1,
         alignItems: "center" as const,
-        paddingVertical: 11,
+        justifyContent: "center" as const,
+        minHeight: 44,
       },
       tabLabel: {
         fontFamily: FONT.mono,
@@ -198,6 +209,23 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
         fontFamily: FONT.sans,
         fontSize: 14,
       },
+      searchWrap: { position: "relative" as const },
+      searchInput: { paddingRight: 34 },
+      searchClear: {
+        position: "absolute" as const,
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 34,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+      },
+      clearText: { fontFamily: FONT.mono, color: p.muted, fontSize: 11, letterSpacing: 1 },
+      rssRow: {
+        flexDirection: (narrow ? "column" : "row") as "column" | "row",
+        alignItems: (narrow ? "stretch" : "center") as "stretch" | "center",
+        gap: 10,
+      },
       area: {
         minHeight: 96,
         borderWidth: 1,
@@ -250,7 +278,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
       subscribeText: { fontFamily: FONT.sans, color: p.accent, fontSize: 12 },
       subscribedText: { fontFamily: FONT.mono, color: p.muted, fontSize: 11, letterSpacing: 1 },
     };
-  }, [theme, layout.compact]);
+  }, [theme, layout.compact, narrow]);
 
   const items = query.data?.items ?? [];
 
@@ -347,6 +375,17 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
               multiline
               style={styles.area}
             />
+            {opml.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="清除已粘贴的 OPML"
+                hitSlop={8}
+                onPress={() => setOpml("")}
+                style={{ alignSelf: "flex-end" }}
+              >
+                <Text style={styles.clearText}>清除</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="确认导入"
@@ -368,15 +407,32 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
     const resultCount = suggestions.data?.items.length ?? 0;
     return (
       <View style={{ paddingHorizontal: styles.horizontal, paddingTop: 14, paddingBottom: 18 }}>
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="搜博客、作者或标签"
-          placeholderTextColor={styles.p.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.input}
-        />
+        <View style={styles.searchWrap}>
+          <TextInput
+            ref={searchRef}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="搜博客、作者或标签"
+            placeholderTextColor={styles.p.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.input, styles.searchInput]}
+          />
+          {search.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="清空搜索"
+              hitSlop={8}
+              onPress={() => {
+                setSearch("");
+                searchRef.current?.focus();
+              }}
+              style={styles.searchClear}
+            >
+              <Text style={styles.iconGlyph}>×</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -389,7 +445,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
         </Pressable>
 
         {showRss ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={styles.rssRow}>
             <TextInput
               value={url}
               onChangeText={setUrl}
@@ -397,7 +453,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
               placeholderTextColor={styles.p.muted}
               autoCapitalize="none"
               autoCorrect={false}
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.input, narrow ? undefined : { flex: 1 }]}
             />
             <Pressable
               accessibilityRole="button"
@@ -467,10 +523,16 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
                 key={entry.id}
                 accessibilityRole="button"
                 accessibilityLabel={entry.label}
-                onPress={() => setTab(entry.id)}
+                onPress={() => {
+                  setTab(entry.id);
+                  setConfirmId(null);
+                }}
                 style={styles.tab}
               >
-                <Text style={[styles.tabLabel, active ? styles.tabLabelOn : styles.tabLabelOff]}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.tabLabel, active ? styles.tabLabelOn : styles.tabLabelOff]}
+                >
                   {entry.label}
                 </Text>
               </Pressable>

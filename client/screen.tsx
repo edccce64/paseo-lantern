@@ -1,6 +1,6 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
-import { FlatList, Icon, useToast } from "@getpaseo/plugin/client/ui";
+import { FlatList, Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, Text, TextInput, View } from "react-native";
@@ -96,6 +96,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const [openItem, setOpenItem] = useState<FeedItem | null>(null);
   const [subsOpen, setSubsOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
+  const [unstarTarget, setUnstarTarget] = useState<FeedItem | null>(null);
 
   const state = settings.status === "ready" ? settings.values : EMPTY_STATE;
 
@@ -112,6 +113,11 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     const key = itemKey(item);
     if (state.read.includes(key)) return;
     saveState({ read: [...state.read, key].slice(-MAX_READ_ENTRIES) });
+  }
+
+  function removeStar(item: FeedItem): void {
+    const key = itemKey(item);
+    saveState({ star: state.star.filter((entry) => itemKey(entry) !== key) });
   }
 
   const query = useQuery({
@@ -226,7 +232,13 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         borderBottomWidth: 1,
         borderBottomColor: p.rule,
       },
+      searchRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 8,
+      },
       searchInput: {
+        flex: 1,
         fontFamily: FONT.sans,
         fontSize: 13.5,
         color: p.ink,
@@ -236,6 +248,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         borderRadius: 2,
         paddingHorizontal: 10,
         paddingVertical: 7,
+      },
+      searchClear: {
+        minWidth: 28,
+        minHeight: 28,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
       },
 
       // 列表
@@ -284,6 +302,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         marginTop: 9,
       },
       bylineText: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 0.6, color: p.muted },
+      bylineSource: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 0.6, color: p.muted, flexShrink: 1 },
       bylineHair: { flex: 1, height: 1, backgroundColor: p.rule },
 
       // 空态与错误
@@ -297,6 +316,42 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         backgroundColor: p.accent,
       },
       retryText: { fontFamily: FONT.sans, fontSize: 15, fontWeight: "700" as const, color: p.paper },
+
+      emptyClear: {
+        marginTop: 6,
+        minHeight: 32,
+        paddingHorizontal: 12,
+        justifyContent: "center" as const,
+      },
+      emptyClearText: { fontFamily: FONT.sans, fontSize: 13, color: p.accent },
+
+      // 取消收藏确认
+      dialog: { gap: 12 },
+      dialogTitle: { fontFamily: FONT.serif, fontSize: 17, fontWeight: "700" as const, color: p.ink },
+      dialogText: { fontFamily: FONT.sans, fontSize: 13.5, lineHeight: 20, color: p.inkSoft },
+      dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const, marginTop: 4 },
+      dialogCancel: {
+        minHeight: 44,
+        paddingHorizontal: 18,
+        justifyContent: "center" as const,
+        alignItems: "center" as const,
+        borderRadius: 2,
+        borderWidth: 1,
+        borderColor: p.rule,
+        backgroundColor: "transparent",
+      },
+      dialogCancelText: { fontFamily: FONT.sans, fontSize: 14, letterSpacing: 1, color: p.ink },
+      dialogConfirm: {
+        minHeight: 44,
+        paddingHorizontal: 18,
+        justifyContent: "center" as const,
+        alignItems: "center" as const,
+        borderRadius: 2,
+        borderWidth: 1,
+        borderColor: p.accent,
+        backgroundColor: p.accent,
+      },
+      dialogConfirmText: { fontFamily: FONT.sans, fontSize: 14, letterSpacing: 1, fontWeight: "600" as const, color: p.paper },
 
       // 页脚
       footer: {
@@ -402,12 +457,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const today = useMemo(() => new Date(), []);
 
   function renderByline(item: FeedItem) {
+    const source = sourceName(item);
     return (
       <View style={styles.byline}>
-        <Text style={styles.bylineText} numberOfLines={1}>
-          {sourceName(item)}
-        </Text>
-        <View style={styles.bylineHair} />
+        {source ? (
+          <>
+            <Text style={styles.bylineSource} numberOfLines={1}>
+              {source}
+            </Text>
+            <View style={styles.bylineHair} />
+          </>
+        ) : null}
         <Text style={styles.bylineText} numberOfLines={1}>
           {formatTime(item.publishedAt)}
         </Text>
@@ -422,6 +482,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         accessibilityRole="button"
         accessibilityLabel={item.title}
         onPress={() => open(item)}
+        onLongPress={isStarChannel ? () => setUnstarTarget(item) : undefined}
         style={styles.row}
       >
         <View style={styles.markCol}>{unread ? <View style={styles.unreadMark} /> : null}</View>
@@ -459,7 +520,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     <View style={styles.screen}>
       <View style={styles.masthead}>
         <Text style={styles.vol}>
-          {formatToday(today)} · 今日 {rawData.length} 条
+          {layout.compact
+            ? `${formatTodayShort(today)} · ${rawData.length} 条`
+            : `${formatToday(today)} · 今日 ${rawData.length} 条`}
         </Text>
         <Text style={styles.wordmark}>提灯日报</Text>
         {isStarChannel ? null : (
@@ -518,15 +581,28 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
       {rawData.length > 0 ? (
         <View style={styles.searchWrap}>
-          <TextInput
-            value={keyword}
-            onChangeText={setKeyword}
-            placeholder="搜标题或来源"
-            placeholderTextColor={colors.muted}
-            style={styles.searchInput}
-            returnKeyType="search"
-            accessibilityLabel="搜索"
-          />
+          <View style={styles.searchRow}>
+            <TextInput
+              value={keyword}
+              onChangeText={setKeyword}
+              placeholder="搜标题或来源"
+              placeholderTextColor={colors.muted}
+              style={styles.searchInput}
+              returnKeyType="search"
+              accessibilityLabel="搜索"
+            />
+            {keyword.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="清空搜索"
+                onPress={() => setKeyword("")}
+                hitSlop={6}
+                style={styles.searchClear}
+              >
+                <Icon name="X" size={15} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -554,8 +630,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           keyExtractor={(item) => `${item.source}-${item.id}`}
           renderItem={({ item, index }) => renderRow(item, index === 0)}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          refreshing={refreshing}
-          onRefresh={() => void refresh()}
+          refreshing={isStarChannel ? false : refreshing}
+          onRefresh={isStarChannel ? undefined : () => void refresh()}
           contentContainerStyle={data.length === 0 ? { flexGrow: 1 } : undefined}
           ListFooterComponent={
             rawData.length > 0 ? (
@@ -580,7 +656,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           ListEmptyComponent={
             <View style={styles.state}>
               {rawData.length > 0 ? (
-                <Text style={styles.stateText}>没有匹配的内容</Text>
+                <>
+                  <Text style={styles.stateText}>没有匹配的内容</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="清空搜索"
+                    onPress={() => setKeyword("")}
+                    style={styles.emptyClear}
+                  >
+                    <Text style={styles.emptyClearText}>清空搜索</Text>
+                  </Pressable>
+                </>
               ) : (
                 <>
                   <Icon
@@ -604,6 +690,44 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         open={subsOpen}
         onOpenChange={setSubsOpen}
       />
+
+      <Modal
+        title="取消收藏"
+        open={unstarTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setUnstarTarget(null);
+        }}
+      >
+        <Modal.Content contentContainerStyle={{ padding: 16 }}>
+          <View style={styles.dialog}>
+            <Text style={styles.dialogTitle}>从收藏里移除这条？</Text>
+            <Text style={styles.dialogText} numberOfLines={2}>
+              {unstarTarget?.title ?? ""}
+            </Text>
+            <View style={styles.dialogActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="保留收藏"
+                onPress={() => setUnstarTarget(null)}
+                style={styles.dialogCancel}
+              >
+                <Text style={styles.dialogCancelText}>取消</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="确认移除收藏"
+                onPress={() => {
+                  if (unstarTarget) removeStar(unstarTarget);
+                  setUnstarTarget(null);
+                }}
+                style={styles.dialogConfirm}
+              >
+                <Text style={styles.dialogConfirmText}>移除</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal.Content>
+      </Modal>
     </View>
   );
 

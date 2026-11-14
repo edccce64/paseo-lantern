@@ -11,6 +11,56 @@ const turndown = new TurndownService({
 
 turndown.remove(["script", "style", "noscript", "iframe", "form", "input", "button"]);
 
+/* ---------- GFM 管状表格 ---------- */
+/* turndown 核心不把 <table> 转成 Markdown 表格，这里补规则，输出 | a | b | 形式，供客户端解析。 */
+
+const tableIndexOf = Array.prototype.indexOf;
+
+/** 每张表的第一行当表头：有 thead 取 thead 首行，否则取 table 的第一个 <tr>（无表头表格也这样处理） */
+function isHeadingRow(tr: any): boolean {
+  let table = tr;
+  while (table && table.nodeName !== "TABLE") table = table.parentNode;
+  if (!table) return false;
+  const rows = table.getElementsByTagName("tr");
+  return rows.length > 0 && rows[0] === tr;
+}
+
+function tableCellMarkdown(content: string, node: any): string {
+  const index = tableIndexOf.call(node.parentNode.childNodes, node);
+  const prefix = index === 0 ? "| " : " ";
+  return prefix + content + " |";
+}
+
+function tableRowMarkdown(content: string, node: any): string {
+  let borderCells = "";
+  const alignMap: Record<string, string> = { left: ":--", right: "--:", center: ":-:" };
+  if (isHeadingRow(node)) {
+    for (let i = 0; i < node.childNodes.length; i++) {
+      let border = "---";
+      const align = String(node.childNodes[i].getAttribute("align") || "").toLowerCase();
+      if (align) border = alignMap[align] || border;
+      borderCells += tableCellMarkdown(border, node.childNodes[i]);
+    }
+  }
+  return "\n" + content + (borderCells ? "\n" + borderCells : "");
+}
+
+function tableMarkdown(content: string): string {
+  // 单元格内换行会引入空行，压掉第一个，避免表格中间断开
+  return "\n\n" + content.replace("\n\n", "\n") + "\n\n";
+}
+
+turndown.addRule("tableCell", { filter: ["th", "td"], replacement: tableCellMarkdown });
+turndown.addRule("tableRow", { filter: "tr", replacement: tableRowMarkdown });
+turndown.addRule("table", {
+  filter: (node: any) => node.nodeName === "TABLE",
+  replacement: tableMarkdown,
+});
+turndown.addRule("tableSection", {
+  filter: ["thead", "tbody", "tfoot"],
+  replacement: (content) => content,
+});
+
 function stripComments(html: string): string {
   return html.replace(/<!--[\s\S]*?-->/g, "");
 }

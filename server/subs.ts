@@ -7,6 +7,7 @@ import { rateLimitMessage } from "./errors";
 import { buildOpml, parseOpml } from "./feeds/parse";
 import { getText } from "./sources/http";
 import { parseFeed } from "./feeds/parse";
+import { displaySourceName } from "./text/source-name";
 
 const FILE = path.join(CACHE_DIR, "subscriptions.json");
 
@@ -20,11 +21,20 @@ function normalizeUrl(input: string): string {
   return value;
 }
 
+/**
+ * 读订阅列表。订阅标题是抓源时取到的 feed 标题，常常是
+ * 「栏目标题 | 站点名」这种长串，展示与后续抓取都用短来源名。
+ * 旧文件里的长标题在这里就地洗短，不写回磁盘（保留原始标题供改名）。
+ */
 export async function readSubs(): Promise<Subscription[]> {
   try {
     const raw = await fs.readFile(FILE, "utf8");
     const parsed = JSON.parse(raw) as { items?: Subscription[] };
-    return Array.isArray(parsed.items) ? parsed.items : [];
+    if (!Array.isArray(parsed.items)) return [];
+    return parsed.items.map((item) => ({
+      ...item,
+      title: displaySourceName(item.title),
+    }));
   } catch {
     return [];
   }

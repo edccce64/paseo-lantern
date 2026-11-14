@@ -30,13 +30,21 @@ function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
 }
 
+/** 今天 → 07:54；昨天 → 昨天 07:54；今年 → 11月13日；往年 → 2024年11月13日 */
 function formatTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
-  if (sameDay) return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+  const stamp = date.getTime();
+  if (stamp >= startOfToday) return time;
+  if (stamp >= startOfYesterday) return `昨天 ${time}`;
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  }
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
 function stateLabel(state: FeedState): string {
@@ -135,17 +143,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         justifyContent: "center" as const,
         borderRadius: 18,
       },
-      fab: {
-        position: "absolute" as const,
-        right: 16,
-        bottom: 20,
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        alignItems: "center" as const,
-        justifyContent: "center" as const,
-        backgroundColor: theme.colors.accent,
-      },
       chip: {
         minHeight: layout.compact ? 44 : 36,
         paddingHorizontal: 12,
@@ -164,16 +161,34 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       },
       chipText: { color: theme.colors.foreground, fontSize: 13.5 },
       chipTextActive: { color: theme.colors.accentForeground, fontSize: 13.5 },
-      footer: { paddingHorizontal: horizontal, paddingVertical: 20, alignItems: "center" as const },
+      footer: {
+        paddingHorizontal: horizontal,
+        paddingVertical: 12,
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        justifyContent: "space-between" as const,
+        gap: 12,
+      },
       footerText: { color: theme.colors.foregroundMuted, fontSize: 11 },
+      footerEntry: {
+        minHeight: 44,
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 6,
+        paddingLeft: 8,
+      },
+      footerEntryText: { color: theme.colors.foregroundMuted, fontSize: 12 },
       row: {
         paddingHorizontal: horizontal,
         paddingVertical: 13,
-        gap: 5,
+        flexDirection: "row" as const,
+        gap: 6,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
       },
-      rowHead: { flexDirection: "row" as const, gap: 8, alignItems: "flex-start" as const },
+      // 未读标记占固定一列，标题起点在所有条目上完全一致
+      markCol: { width: 7, alignItems: "flex-start" as const },
+      rowBody: { flex: 1, gap: 5 },
       unreadDot: {
         width: 7,
         height: 7,
@@ -223,19 +238,19 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         onPress={() => open(item)}
         style={styles.row}
       >
-        <View style={styles.rowHead}>
-          {unread ? <View style={styles.unreadDot} /> : null}
-          <Text style={[styles.rowTitle, { flex: 1 }]} numberOfLines={2}>
+        <View style={styles.markCol}>{unread ? <View style={styles.unreadDot} /> : null}</View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rowTitle} numberOfLines={2}>
             {item.title}
           </Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Text style={[styles.meta, { flexShrink: 1 }]} numberOfLines={1}>
-            {item.origin ?? ""}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {formatTime(item.publishedAt)}
-          </Text>
+          <View style={styles.metaRow}>
+            <Text style={[styles.meta, { flexShrink: 1 }]} numberOfLines={1}>
+              {item.origin ?? ""}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {formatTime(item.publishedAt)}
+            </Text>
+          </View>
         </View>
       </Pressable>
     );
@@ -325,17 +340,24 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           renderItem={({ item }) => renderRow(item)}
           refreshing={refreshing}
           onRefresh={() => void refresh()}
-          contentContainerStyle={
-            data.length === 0
-              ? { flexGrow: 1 }
-              : channel === "mine"
-                ? { paddingBottom: 84 }
-                : undefined
-          }
+          contentContainerStyle={data.length === 0 ? { flexGrow: 1 } : undefined}
           ListFooterComponent={
-            statusText && data.length > 0 ? (
+            data.length > 0 ? (
               <View style={styles.footer}>
-                <Text style={styles.footerText}>{statusText}</Text>
+                <Text style={[styles.footerText, { flex: 1 }]} numberOfLines={1}>
+                  {statusText}
+                </Text>
+                {channel === "mine" ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="订阅管理"
+                    onPress={() => setSubsOpen(true)}
+                    style={styles.footerEntry}
+                  >
+                    <Icon name="Settings" size={15} color={theme.colors.foregroundMuted} />
+                    <Text style={styles.footerEntryText}>订阅管理</Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : null
           }
@@ -353,17 +375,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           }
         />
       )}
-
-      {channel === "mine" && !isStarChannel ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="订阅管理"
-          onPress={() => setSubsOpen(true)}
-          style={styles.fab}
-        >
-          <Icon name="Settings" size={19} color={theme.colors.accentForeground} />
-        </Pressable>
-      ) : null}
 
       <SubsPanel
         theme={theme}

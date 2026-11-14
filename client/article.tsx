@@ -137,7 +137,14 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       },
       back: { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const },
       body: { flex: 1 },
-      bodyContent: { paddingHorizontal: horizontal, paddingBottom: 32, gap: 12 },
+      bodyContent: { paddingHorizontal: horizontal, paddingBottom: 32 },
+      // 桌面端正文列封顶 720 并水平居中，手机端不限宽
+      bodyColumn: {
+        width: "100%" as const,
+        maxWidth: layout.compact ? undefined : 720,
+        alignSelf: "center" as const,
+        gap: 12,
+      },
       title: {
         color: theme.colors.foreground,
         fontSize: layout.compact ? 22 : 26,
@@ -375,82 +382,84 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.meta}>
-          {origin} · {formatWhen(publishedAt)}
-        </Text>
-
-        {visibleChips.length > 1 ? (
-          <View style={styles.versions}>
-            {visibleChips.map((entry) => {
-              const available = availableVersion(entry.id);
-              const active = entry.id === version;
-              return (
-                <Pressable
-                  key={entry.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`版本：${entry.title}`}
-                  disabled={!available || (entry.id === "translation" && translating)}
-                  onPress={() => {
-                    if (entry.id === "translation" && !versions.translation) {
-                      void startTranslate();
-                      return;
-                    }
-                    setVersion(entry.id);
-                  }}
-                  style={active ? styles.chipOn : available ? styles.chip : styles.chipOff}
-                >
-                  <Text style={active ? styles.chipTextOn : styles.chipText}>{entry.title}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
-
-        {loading ? <Text style={styles.note}>正在取正文</Text> : null}
-
-        {error ? (
-          <View style={{ gap: 8 }}>
-            <Text style={styles.note}>
-              {error instanceof Error ? error.message : "正文载入失败"}
+        <View style={styles.bodyColumn}>
+            <Text style={styles.title}>{item.title}</Text>
+            <Text style={styles.meta}>
+              {origin} · {formatWhen(publishedAt)}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="重试载入正文"
-              onPress={() => void query.refetch()}
-              style={styles.chip}
-            >
-              <Text style={styles.chipText}>重试</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
-        {note && !loading ? <Text style={styles.note}>{note}</Text> : null}
+            {visibleChips.length > 1 ? (
+              <View style={styles.versions}>
+                {visibleChips.map((entry) => {
+                  const available = availableVersion(entry.id);
+                  const active = entry.id === version;
+                  return (
+                    <Pressable
+                      key={entry.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`版本：${entry.title}`}
+                      disabled={!available || (entry.id === "translation" && translating)}
+                      onPress={() => {
+                        if (entry.id === "translation" && !versions.translation) {
+                          void startTranslate();
+                          return;
+                        }
+                        setVersion(entry.id);
+                      }}
+                      style={active ? styles.chipOn : available ? styles.chip : styles.chipOff}
+                    >
+                      <Text style={active ? styles.chipTextOn : styles.chipText}>{entry.title}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
-        {translating ? (
-          <Text style={styles.note}>
-            {translateSteps.total > 0
-              ? `正在翻译 ${translateSteps.done}/${translateSteps.total} 段`
-              : "准备翻译"}
-          </Text>
-        ) : null}
+            {loading ? <Text style={styles.note}>正在取正文</Text> : null}
 
-        {translateError ? (
-          <View style={{ gap: 8 }}>
-            <Text style={styles.note}>{translateError}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="重试翻译"
-              onPress={() => void startTranslate()}
-              style={styles.chip}
-            >
-              <Text style={styles.chipText}>重试</Text>
-            </Pressable>
-          </View>
-        ) : null}
+            {error ? (
+              <View style={{ gap: 8 }}>
+                <Text style={styles.note}>
+                  {error instanceof Error ? error.message : "正文载入失败"}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="重试载入正文"
+                  onPress={() => void query.refetch()}
+                  style={styles.chip}
+                >
+                  <Text style={styles.chipText}>重试</Text>
+                </Pressable>
+              </View>
+            ) : null}
 
-        {markdown && !loading ? <Markdown>{markdown}</Markdown> : null}
-        {!markdown && !loading && !error ? <Text style={styles.note}>没有正文</Text> : null}
+            {note && !loading ? <Text style={styles.note}>{note}</Text> : null}
+
+            {translating ? (
+              <Text style={styles.note}>
+                {translateSteps.total > 0
+                  ? `正在翻译 ${translateSteps.done}/${translateSteps.total} 段`
+                  : "准备翻译"}
+              </Text>
+            ) : null}
+
+            {translateError ? (
+              <View style={{ gap: 8 }}>
+                <Text style={styles.note}>{translateError}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="重试翻译"
+                  onPress={() => void startTranslate()}
+                  style={styles.chip}
+                >
+                  <Text style={styles.chipText}>重试</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {markdown && !loading ? <Markdown>{markdown}</Markdown> : null}
+            {!markdown && !loading && !error ? <Text style={styles.note}>没有正文</Text> : null}
+        </View>
       </ScrollView>
 
       <View style={styles.bottom}>

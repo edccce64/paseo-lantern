@@ -1,6 +1,6 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
-import { copyText, Modal, TextInput, useToast } from "@getpaseo/plugin/client/ui";
+import { copyText, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ElementRef } from "react";
@@ -13,6 +13,7 @@ import {
   subsRemoveRpc,
   subsSuggestRpc,
 } from "../shared/subs";
+import { LanternSheet } from "./sheet";
 import { FONT, palette } from "./style";
 
 type Props = {
@@ -125,7 +126,6 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
     const horizontal = layout.compact ? 16 : 20;
     return {
       p,
-      horizontal,
       // 栏目横排：像报纸的栏目头，选中的那条压一条 accent 线
       tabBar: {
         flexDirection: "row" as const,
@@ -284,7 +284,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
 
   function renderSubscribed() {
     return (
-      <View style={{ paddingHorizontal: styles.horizontal, paddingTop: 14, paddingBottom: 18 }}>
+      <View>
         {items.length === 0 ? <Text style={styles.empty}>还没有订阅</Text> : null}
         {items.map((item) => {
           const confirming = confirmId === item.id;
@@ -406,7 +406,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   function renderDiscover() {
     const resultCount = suggestions.data?.items.length ?? 0;
     return (
-      <View style={{ paddingHorizontal: styles.horizontal, paddingTop: 14, paddingBottom: 18 }}>
+      <View>
         <View style={styles.searchWrap}>
           <TextInput
             ref={searchRef}
@@ -510,38 +510,39 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   }
 
   return (
-    <Modal title="" open={open} onOpenChange={onOpenChange}>
-      <Modal.Content
-        style={{ backgroundColor: styles.p.paper }}
-        contentContainerStyle={{ padding: 0, gap: 0 }}
-      >
-        <View style={styles.tabBar}>
-          {TABS.map((entry) => {
-            const active = tab === entry.id;
-            return (
-              <Pressable
-                key={entry.id}
-                accessibilityRole="button"
-                accessibilityLabel={entry.label}
-                onPress={() => {
-                  setTab(entry.id);
-                  setConfirmId(null);
-                }}
-                style={styles.tab}
+    <LanternSheet
+      theme={theme}
+      layout={layout}
+      open={open}
+      title="订阅管理"
+      onClose={() => onOpenChange(false)}
+    >
+      <View style={styles.tabBar}>
+        {TABS.map((entry) => {
+          const active = tab === entry.id;
+          return (
+            <Pressable
+              key={entry.id}
+              accessibilityRole="button"
+              accessibilityLabel={entry.label}
+              onPress={() => {
+                setTab(entry.id);
+                setConfirmId(null);
+              }}
+              style={styles.tab}
+            >
+              <Text
+                numberOfLines={1}
+                style={[styles.tabLabel, active ? styles.tabLabelOn : styles.tabLabelOff]}
               >
-                <Text
-                  numberOfLines={1}
-                  style={[styles.tabLabel, active ? styles.tabLabelOn : styles.tabLabelOff]}
-                >
-                  {entry.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                {entry.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-        {tab === "subs" ? renderSubscribed() : renderDiscover()}
-      </Modal.Content>
-    </Modal>
+      {tab === "subs" ? renderSubscribed() : renderDiscover()}
+    </LanternSheet>
   );
 }

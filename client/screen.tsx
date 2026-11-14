@@ -1,6 +1,6 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
-import { FlatList, Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
+import { FlatList, Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Image, Pressable, Text, TextInput, View } from "react-native";
@@ -16,6 +16,7 @@ import { ArticleView } from "./article";
 import { FONT, LABEL, SECTION, isDark, palette } from "./style";
 import { WORDMARK_CREAM, WORDMARK_INK, WORDMARK_RATIO } from "./wordmark";
 import { SubsPanel } from "./subs-panel";
+import { LanternSheet } from "./sheet";
 
 /** 频道来自服务端，收藏是本地伪频道：直接用 settings 里的快照渲染 */
 type ViewChannel = ChannelId | "star";
@@ -627,43 +628,41 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         onOpenChange={setSubsOpen}
       />
 
-      <Modal
-        title="取消收藏"
+      <LanternSheet
+        theme={theme}
+        layout={layout}
         open={unstarTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setUnstarTarget(null);
-        }}
+        title="取消收藏"
+        onClose={() => setUnstarTarget(null)}
       >
-        <Modal.Content contentContainerStyle={{ padding: 16 }}>
-          <View style={styles.dialog}>
-            <Text style={styles.dialogTitle}>从收藏里移除这条？</Text>
-            <Text style={styles.dialogText} numberOfLines={2}>
-              {unstarTarget?.title ?? ""}
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="保留收藏"
-                onPress={() => setUnstarTarget(null)}
-                style={styles.dialogCancel}
-              >
-                <Text style={styles.dialogCancelText}>取消</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="确认移除收藏"
-                onPress={() => {
-                  if (unstarTarget) removeStar(unstarTarget);
-                  setUnstarTarget(null);
-                }}
-                style={styles.dialogConfirm}
-              >
-                <Text style={styles.dialogConfirmText}>移除</Text>
-              </Pressable>
-            </View>
+        <View style={styles.dialog}>
+          <Text style={styles.dialogTitle}>从收藏里移除这条？</Text>
+          <Text style={styles.dialogText} numberOfLines={2}>
+            {unstarTarget?.title ?? ""}
+          </Text>
+          <View style={styles.dialogActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="保留收藏"
+              onPress={() => setUnstarTarget(null)}
+              style={styles.dialogCancel}
+            >
+              <Text style={styles.dialogCancelText}>取消</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="确认移除收藏"
+              onPress={() => {
+                if (unstarTarget) removeStar(unstarTarget);
+                setUnstarTarget(null);
+              }}
+              style={styles.dialogConfirm}
+            >
+              <Text style={styles.dialogConfirmText}>移除</Text>
+            </Pressable>
           </View>
-        </Modal.Content>
-      </Modal>
+        </View>
+      </LanternSheet>
     </View>
   );
 

@@ -1,6 +1,6 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { openExternalUrl, usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
+import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -11,6 +11,7 @@ import { EMPTY_STATE, itemKey, lanternStateSettings } from "../shared/settings";
 import { translateRequestRpc, translateStatusRpc } from "../shared/translate";
 import { buildCompanionPrompt } from "./companion";
 import { FONT, LABEL, type Palette, palette } from "./style";
+import { LanternSheet } from "./sheet";
 
 const VERSION_LABELS: Array<{ id: ArticleVersion; title: string }> = [
   { id: "original", title: "原文" },
@@ -577,7 +578,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         color: colors.muted,
       },
       preview: {
-        maxHeight: 220,
         borderWidth: 1,
         borderColor: colors.rule,
         backgroundColor: colors.panel,
@@ -587,7 +587,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         fontFamily: FONT.sans,
         color: colors.inkSoft,
         fontSize: 13.5,
-        lineHeight: 21,
+        lineHeight: 21.6,
       },
       dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const },
       cancel: {
@@ -1046,44 +1046,44 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         </Pressable>
       </View>
 
-      <Modal
-        title="AI 陪读"
+      <LanternSheet
+        theme={theme}
+        layout={layout}
         open={companion.open}
-        onOpenChange={(open) => setCompanion((state) => ({ ...state, open }))}
+        title="AI 陪读"
+        onClose={() => setCompanion((state) => ({ ...state, open: false }))}
       >
-        <Modal.Content contentContainerStyle={{ padding: 16 }}>
-          <View style={styles.dialog}>
-            <Text style={styles.dialogHint}>以下内容将发送给最近活跃的 agent</Text>
-            <ScrollView style={styles.preview}>
-              <Text style={styles.previewText}>{companion.prompt}</Text>
-            </ScrollView>
-
-            {companion.error ? <Text style={styles.noteStrong}>{companion.error}</Text> : null}
-
-            <View style={styles.dialogActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="取消陪读"
-                onPress={() => setCompanion((state) => ({ ...state, open: false }))}
-                style={styles.cancel}
-              >
-                <Text style={styles.cancelText}>取消</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="发送给这个 agent"
-                disabled={!companion.agentId || companion.sending}
-                onPress={() => void sendCompanion()}
-                style={styles.send}
-              >
-                <Text style={styles.sendText} numberOfLines={1}>
-                  {companion.sending ? "发送中" : "发送"}
-                </Text>
-              </Pressable>
-            </View>
+        <View style={styles.dialog}>
+          <Text style={styles.dialogHint}>以下内容将发送给最近活跃的 agent</Text>
+          <View style={styles.preview}>
+            <Text style={styles.previewText}>{companion.prompt}</Text>
           </View>
-        </Modal.Content>
-      </Modal>
+
+          {companion.error ? <Text style={styles.noteStrong}>{companion.error}</Text> : null}
+
+          <View style={styles.dialogActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="取消陪读"
+              onPress={() => setCompanion((state) => ({ ...state, open: false }))}
+              style={styles.cancel}
+            >
+              <Text style={styles.cancelText}>取消</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="发送给这个 agent"
+              disabled={!companion.agentId || companion.sending}
+              onPress={() => void sendCompanion()}
+              style={styles.send}
+            >
+              <Text style={styles.sendText} numberOfLines={1}>
+                {companion.sending ? "发送中" : "发送"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </LanternSheet>
     </View>
   );
 }

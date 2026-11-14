@@ -1,14 +1,16 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { openExternalUrl, usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Icon, Markdown, Modal, useToast } from "@getpaseo/plugin/client/ui";
+import { Icon, Modal, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import type { ReactNode } from "react";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { type ArticleVersion, articleRpc } from "../shared/article";
 import type { FeedItem } from "../shared/feed";
 import { EMPTY_STATE, itemKey, lanternStateSettings } from "../shared/settings";
 import { translateRequestRpc, translateStatusRpc } from "../shared/translate";
 import { buildCompanionPrompt } from "./companion";
+import { FONT, LABEL, type Palette, palette } from "./style";
 
 const VERSION_LABELS: Array<{ id: ArticleVersion; title: string }> = [
   { id: "original", title: "原文" },
@@ -26,13 +28,243 @@ function formatWhen(iso: string): string {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** 频道名：从条目自身反推，正文页拿不到列表页的当前频道 */
+function channelName(item: FeedItem): string {
+  if (item.source === "qiaomu") return "乔木精选";
+  if (item.source === "rss") return "我的订阅";
+  if (item.badge && item.badge.includes("家信源")) return "AIHOT 热点";
+  return "AIHOT 精选";
+}
+
+/* ---------- 轻量 Markdown ---------- */
+
+type InlineToken = {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  code?: boolean;
+  href?: string;
+};
+
+type Block =
+  | { kind: "heading"; level: number; text: string }
+  | { kind: "para"; text: string }
+  | { kind: "quote"; text: string }
+  | { kind: "list"; ordered: boolean; items: string[] }
+  | { kind: "code"; text: string }
+  | { kind: "image"; src: string; alt: string }
+  | { kind: "rule" };
+
+const INLINE_RE = /(!?\[[^\]]*\]\([^)\s]+\)|\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g;
+
+function parseLink(raw: string): { text: string; href: string } {
+  // raw 形如 [文字](地址) 或 ![说明](地址)
+  const close = raw.indexOf("]");
+  const start = raw.startsWith("![") ? 3 : 1;
+  const text = raw.slice(start, close);
+  const href = raw.slice(close + 2, raw.length - 1);
+  return { text, href };
+}
+
+function parseInline(text: string): InlineToken[] {
+  const tokens: InlineToken[] = [];
+  const re = new RegExp(INLINE_RE.source, "g");
+  let last = 0;
+  let match: RegExpExecArray | null = re.exec(text);
+  while (match) {
+    const raw = match[0];
+    if (match.index > last) tokens.push({ text: text.slice(last, match.index) });
+    if (raw.startsWith("![")) {
+      const link = parseLink(raw);
+      tokens.push({ text: link.text || "图片", href: link.href });
+    } else if (raw.startsWith("[")) {
+      const link = parseLink(raw);
+      tokens.push({ text: link.text, href: link.href });
+    } else if (raw.startsWith("**")) {
+      tokens.push({ text: raw.slice(2, -2), bold: true });
+    } else if (raw.startsWith("`")) {
+      tokens.push({ text: raw.slice(1, -1), code: true });
+    } else {
+      tokens.push({ text: raw.slice(1, -1), italic: true });
+    }
+    last = match.index + raw.length;
+    match = re.exec(text);
+  }
+  if (last < text.length) tokens.push({ text: text.slice(last) });
+  return tokens;
+}
+
+function isBlockStart(line: string): boolean {
+  const t = line.trim();
+  return (
+    t.length === 0 ||
+    NOISE_LINE.test(t) ||
+    t.startsWith("```") ||
+    /^(-{3,}|\*{3,}|_{3,})$/.test(t) ||
+    /^#{1,6}\s/.test(t) ||
+    /^>\s?/.test(t) ||
+    /^([-*+])\s/.test(t) ||
+    /^\d+[.)]\s/.test(t)
+  );
+}
+
+/** 只有括号、无文字的行：抓取时残留的空链接碎片，直接丢掉 */
+const NOISE_LINE = /^[\s\[\]\(\)]+$/;
+
+/**
+ * 把原始 Markdown 规整成可渲染的样子。
+ * 1. 图片套链接写法的外层链接去掉，只留图片。
+ * 2. 反斜杠转义还原：\_ \* 这类变成字面字符。
+ */
+function normalizeMarkdown(source: string): string {
+  let out = source;
+  // [\n\n![](图)\n\n](链接) → ![](图)
+  out = out.replace(/\[\s*(!\[[^\]]*\]\([^)\s]*\))\s*\]\([^)\s]*\)/g, "$1");
+  out = out.replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g, "$1");
+  return out;
+}
+
+function parseBlocks(source: string): Block[] {
+  const lines = normalizeMarkdown(source).replace(/\r\n/g, "\n").split("\n");
+  const blocks: Block[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+    if (trimmed.length === 0 || NOISE_LINE.test(trimmed)) {
+      i += 1;
+      continue;
+    }
+    // 独占一行的图片：![说明](地址)
+    const image = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(trimmed);
+    if (image) {
+      blocks.push({ kind: "image", alt: image[1], src: image[2] });
+      i += 1;
+      continue;
+    }
+    if (trimmed.startsWith("```")) {
+      const buf: string[] = [];
+      i += 1;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        buf.push(lines[i]);
+        i += 1;
+      }
+      i += 1;
+      blocks.push({ kind: "code", text: buf.join("\n") });
+      continue;
+    }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      blocks.push({ kind: "rule" });
+      i += 1;
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+    if (heading) {
+      blocks.push({ kind: "heading", level: heading[1].length, text: heading[2] });
+      i += 1;
+      continue;
+    }
+    if (/^>\s?/.test(trimmed)) {
+      const buf: string[] = [];
+      while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
+        buf.push(lines[i].trim().replace(/^>\s?/, ""));
+        i += 1;
+      }
+      blocks.push({ kind: "quote", text: buf.join(" ") });
+      continue;
+    }
+    const bullet = /^([-*+])\s+(.*)$/.exec(trimmed);
+    const ordered = /^\d+[.)]\s+(.*)$/.exec(trimmed);
+    if (bullet || ordered) {
+      const isOrdered = ordered !== null;
+      const items: string[] = [];
+      while (i < lines.length) {
+        const t = lines[i].trim();
+        const b = /^([-*+])\s+(.*)$/.exec(t);
+        const o = /^\d+[.)]\s+(.*)$/.exec(t);
+        if (isOrdered && o) {
+          items.push(o[1]);
+          i += 1;
+          continue;
+        }
+        if (!isOrdered && b) {
+          items.push(b[2]);
+          i += 1;
+          continue;
+        }
+        if (items.length > 0 && t.length > 0 && !isBlockStart(t)) {
+          items[items.length - 1] = `${items[items.length - 1]} ${t}`;
+          i += 1;
+          continue;
+        }
+        break;
+      }
+      blocks.push({ kind: "list", ordered: isOrdered, items });
+      continue;
+    }
+    const buf: string[] = [];
+    while (i < lines.length) {
+      const t = lines[i].trim();
+      if (t.length === 0 || isBlockStart(t)) break;
+      buf.push(t);
+      i += 1;
+    }
+    blocks.push({ kind: "para", text: buf.join(" ") });
+  }
+  return blocks;
+}
+
+/** 头像、站点 logo、头像缩图：正文阅读时是噪声，直接不渲染 */
+const NOISE_IMAGE = /(profile_images|\/avatar|\/logo|favicon|sprite|1x1\.|pixel\.gif)/i;
+
+/**
+ * 正文图片：先按 16:9 占位，拿到真实尺寸后用真实宽高比，不裁切。
+ */
+function ArticleImage({ src, alt, colors }: { src: string; alt: string; colors: Palette }) {
+  const [ratio, setRatio] = useState(16 / 9);
+  const [failed, setFailed] = useState(false);
+  const skipped = NOISE_IMAGE.test(src);
+
+  useEffect(() => {
+    if (skipped) return;
+    let alive = true;
+    Image.getSize(
+      src,
+      (width, height) => {
+        if (alive && width > 0 && height > 0) setRatio(width / height);
+      },
+      () => {
+        if (alive) setFailed(true);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [src, skipped]);
+
+  if (skipped || failed) return null;
+
+  return (
+    <View style={{ marginVertical: 14, gap: 6 }}>
+      <Image
+        source={{ uri: src }}
+        style={{ width: "100%", aspectRatio: ratio, borderRadius: 3, backgroundColor: colors.panel }}
+        resizeMode="contain"
+      />
+      {alt ? (
+        <Text style={{ color: colors.muted, fontSize: 11, fontFamily: FONT.mono, letterSpacing: 0.5 }}>
+          {alt}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 type Props = {
   item: FeedItem;
   theme: PluginScreenProps["theme"];
   layout: PluginScreenProps["layout"];
   onBack: () => void;
 };
-
 export function ArticleView({ item, theme, layout, onBack }: Props) {
   const toast = useToast();
   const paseo = usePaseo();
@@ -125,113 +357,240 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     }
   }, [statusQuery.data, translating, queryClient, toast]);
 
+  const colors = useMemo(() => palette(theme), [theme]);
+  const compact = layout.compact;
+
   const styles = useMemo(() => {
-    const horizontal = layout.compact ? 16 : 28;
+    const horizontal = compact ? 16 : 28;
+    const paraSize = 16.5;
     return {
-      screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+      screen: { flex: 1, backgroundColor: colors.paper },
       topBar: {
         flexDirection: "row" as const,
         alignItems: "center" as const,
+        justifyContent: "space-between" as const,
         paddingHorizontal: horizontal - 12,
         height: 48,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.rule,
       },
       back: { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const },
+      topChannel: {
+        fontFamily: FONT.mono,
+        fontSize: 11,
+        letterSpacing: 2,
+        color: colors.muted,
+        marginRight: 12,
+      },
       body: { flex: 1 },
-      bodyContent: { paddingHorizontal: horizontal, paddingBottom: 32 },
+      bodyContent: { paddingHorizontal: horizontal, paddingBottom: 40 },
       // 桌面端正文列封顶 720 并水平居中，手机端不限宽
       bodyColumn: {
         width: "100%" as const,
-        maxWidth: layout.compact ? undefined : 720,
+        maxWidth: compact ? undefined : 720,
         alignSelf: "center" as const,
-        gap: 12,
+        gap: 14,
+      },
+      kickerRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+      badge: {
+        ...LABEL,
+        fontSize: 10,
+        letterSpacing: 1,
+        color: colors.accent,
+        borderWidth: 1,
+        borderColor: colors.accent,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+      },
+      kicker: {
+        ...LABEL,
+        fontSize: 11,
+        lineHeight: 18,
+        color: colors.muted,
+        flexShrink: 1,
       },
       title: {
-        color: theme.colors.foreground,
-        fontSize: layout.compact ? 22 : 26,
-        lineHeight: layout.compact ? 31 : 36,
+        fontFamily: FONT.serif,
+        fontSize: compact ? 26 : 32,
+        lineHeight: compact ? 34 : 42,
+        fontWeight: "700" as const,
+        color: colors.ink,
       },
-      meta: { color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 18 },
-      versions: { flexDirection: "row" as const, gap: 8, flexWrap: "wrap" as const },
-      chip: {
-        minHeight: 40,
-        paddingHorizontal: 14,
-        justifyContent: "center" as const,
-        borderRadius: 999,
+      rule: { height: 1, backgroundColor: colors.rule },
+      tabs: { flexDirection: "row" as const, gap: 20 },
+      tab: { paddingBottom: 4 },
+      tabText: {
+        fontFamily: FONT.sans,
+        fontSize: 14,
+        letterSpacing: 1,
+        color: colors.muted,
+      },
+      tabTextOn: {
+        fontFamily: FONT.sans,
+        fontSize: 14,
+        letterSpacing: 1,
+        color: colors.accent,
+        fontWeight: "600" as const,
+      },
+      tabUnderline: { height: 2, marginTop: 4, backgroundColor: "transparent" },
+      tabUnderlineOn: { height: 2, marginTop: 4, backgroundColor: colors.accent },
+      para: {
+        fontFamily: FONT.serif,
+        fontSize: paraSize,
+        lineHeight: Math.round(paraSize * 1.75),
+        color: colors.inkSoft,
+      },
+      dropRow: { flexDirection: "row" as const, alignItems: "flex-start" as const },
+      dropCap: {
+        fontFamily: FONT.serif,
+        fontSize: 52,
+        // 首字母占两行正文的高度，下沉效果更接近报纸
+        lineHeight: Math.round(paraSize * 1.75) * 2,
+        color: colors.accent,
+        marginRight: 6,
+      },
+      dropRest: { flex: 1 },
+      heading: {
+        fontFamily: FONT.serif,
+        fontWeight: "700" as const,
+        color: colors.ink,
+        marginTop: 18,
+      },
+      quote: {
+        borderLeftWidth: 2,
+        borderLeftColor: colors.accent,
+        paddingLeft: 12,
+        marginTop: 14,
+      },
+      listRow: { flexDirection: "row" as const, gap: 8, marginTop: 6 },
+      listMarker: {
+        fontFamily: FONT.mono,
+        fontSize: 13,
+        lineHeight: 26,
+        color: colors.accent,
+        minWidth: 18,
+      },
+      listText: { flex: 1 },
+      code: {
+        fontFamily: FONT.mono,
+        fontSize: 13,
+        lineHeight: 20,
+        color: colors.ink,
+        backgroundColor: colors.panel,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: colors.rule,
+        padding: 10,
+        marginTop: 14,
       },
-      chipOn: {
-        minHeight: 40,
-        paddingHorizontal: 14,
-        justifyContent: "center" as const,
-        borderRadius: 999,
-        backgroundColor: theme.colors.accent,
+      ruleBlock: { height: 1, backgroundColor: colors.rule, marginVertical: 20 },
+      imageWrap: { marginVertical: 12, gap: 6 },
+      image: {
+        width: "100%" as const,
+        aspectRatio: 16 / 9,
+        borderRadius: 4,
+        backgroundColor: colors.panel,
       },
-      chipOff: {
-        minHeight: 40,
-        paddingHorizontal: 14,
-        justifyContent: "center" as const,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        opacity: 0.4,
+      imageAlt: { color: colors.muted, fontSize: 11, fontFamily: FONT.mono, letterSpacing: 0.5 },
+      note: {
+        fontFamily: FONT.sans,
+        color: colors.muted,
+        fontSize: 13,
+        lineHeight: 20,
       },
-      chipText: { color: theme.colors.foreground, fontSize: 14 },
-      chipTextOn: { color: theme.colors.accentForeground, fontSize: 14 },
-      note: { color: theme.colors.foregroundMuted, fontSize: 13, lineHeight: 20 },
+      noteStrong: { color: colors.ink, fontSize: 13.5 },
       bottom: {
         borderTopWidth: 1,
-        borderTopColor: theme.colors.border,
+        borderTopColor: colors.rule,
+        backgroundColor: colors.paper,
         paddingHorizontal: horizontal,
         paddingVertical: 10,
         flexDirection: "row" as const,
-        gap: 12,
+        alignItems: "center" as const,
+        gap: 10,
       },
-      primary: {
+      companion: {
         flex: 1,
-        minHeight: 44,
+        height: 46,
         justifyContent: "center" as const,
         alignItems: "center" as const,
-        borderRadius: 10,
-        backgroundColor: theme.colors.accent,
+        borderWidth: 1,
+        borderColor: colors.ink,
+        backgroundColor: "transparent",
       },
-      primaryText: { color: theme.colors.accentForeground, fontSize: 16, fontWeight: "600" as const },
-      sendButton: { flex: 0, minWidth: 92, paddingHorizontal: 24 },
-      ghost: {
+      companionText: {
+        fontFamily: FONT.sans,
+        fontSize: 14,
+        letterSpacing: 1,
+        color: colors.ink,
+      },
+      iconButton: {
+        width: 46,
+        height: 46,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        borderWidth: 1,
+        borderColor: colors.rule,
+        backgroundColor: "transparent",
+      },
+      starGlyph: { fontSize: 19, lineHeight: 23, color: colors.ink },
+      starGlyphOn: { fontSize: 19, lineHeight: 23, color: colors.accent },
+      dialog: { gap: 12 },
+      dialogHint: {
+        fontFamily: FONT.sans,
+        fontSize: 12,
+        lineHeight: 18,
+        color: colors.muted,
+      },
+      preview: {
+        maxHeight: 220,
+        borderWidth: 1,
+        borderColor: colors.rule,
+        backgroundColor: colors.panel,
+        padding: 12,
+      },
+      previewText: {
+        fontFamily: FONT.sans,
+        color: colors.inkSoft,
+        fontSize: 13.5,
+        lineHeight: 21,
+      },
+      dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const },
+      cancel: {
         minHeight: 44,
         paddingHorizontal: 18,
         justifyContent: "center" as const,
         alignItems: "center" as const,
-        borderRadius: 10,
+        borderRadius: 2,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: colors.rule,
+        backgroundColor: "transparent",
       },
-      ghostText: { color: theme.colors.foreground, fontSize: 15 },
-      iconGhost: {
-        width: 44,
-        height: 44,
-        alignItems: "center" as const,
+      cancelText: {
+        fontFamily: FONT.sans,
+        fontSize: 14,
+        letterSpacing: 1,
+        color: colors.ink,
+      },
+      send: {
+        minHeight: 44,
+        minWidth: 92,
+        paddingHorizontal: 24,
         justifyContent: "center" as const,
-        borderRadius: 10,
+        alignItems: "center" as const,
+        borderRadius: 2,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: colors.accent,
+        backgroundColor: colors.accent,
       },
-      dialog: { gap: 12 },
-      preview: {
-        maxHeight: 220,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: 10,
-        padding: 12,
+      sendText: {
+        fontFamily: FONT.sans,
+        fontSize: 14,
+        fontWeight: "600" as const,
+        letterSpacing: 1,
+        color: colors.paper,
       },
-      previewText: {
-        color: theme.colors.foreground,
-        fontSize: 13,
-        lineHeight: 20,
-      },
-      dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const },
     };
-  }, [theme, layout.compact]);
+  }, [colors, compact]);
 
   async function openCompanion() {
     const prompt = buildCompanionPrompt(item);
@@ -326,6 +685,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     }
   }
 
+  /** 站点短名：新条目带 site，旧条目没有 */
+  const site = (item as { site?: string | null }).site ?? null;
+
   const result = query.data ?? null;
   const versions = result?.versions ?? {
     original: true,
@@ -368,6 +730,140 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   /** 只留真正可用的版本；只剩「原文」时不渲染版本行 */
   const visibleChips = chips.filter((entry) => availableVersion(entry.id));
 
+  /** 行内 token 渲染：加粗、斜体、行内代码、链接 */
+  function renderTokens(tokens: InlineToken[], keyPrefix: string): ReactNode[] {
+    return tokens.map((token, index) => {
+      const key = `${keyPrefix}-${index}`;
+      if (token.href) {
+        return (
+          <Text
+            key={key}
+            style={{ color: colors.accent, textDecorationLine: "underline" }}
+            onPress={() => {
+              void openExternalUrl(token.href as string).catch(() => toast.error("打不开这个链接"));
+            }}
+          >
+            {token.text}
+          </Text>
+        );
+      }
+      if (token.code) {
+        return (
+          <Text key={key} style={{ fontFamily: FONT.mono, fontSize: 13.5, color: colors.ink }}>
+            {token.text}
+          </Text>
+        );
+      }
+      if (token.bold) {
+        return (
+          <Text key={key} style={{ fontWeight: "700", color: colors.ink }}>
+            {token.text}
+          </Text>
+        );
+      }
+      if (token.italic) {
+        return <Text key={key} style={{ fontStyle: "italic" }}>{token.text}</Text>;
+      }
+      return <Text key={key}>{token.text}</Text>;
+    });
+  }
+
+  /** 行内文本渲染 */
+  function renderInline(text: string, keyPrefix: string): ReactNode[] {
+    return renderTokens(parseInline(text), keyPrefix);
+  }
+
+  /** 正文块渲染；第一段做首字下沉 */
+  function renderBlocks(blocks: Block[]): ReactNode[] {
+    const out: ReactNode[] = [];
+    let dropCapUsed = false;
+    blocks.forEach((block, index) => {
+      const key = `b${index}`;
+      if (block.kind === "heading") {
+        const size = block.level <= 2 ? 20 : 17;
+        out.push(
+          <Text key={key} style={[styles.heading, { fontSize: size, lineHeight: Math.round(size * 1.4) }]}>
+            {renderInline(block.text, key)}
+          </Text>,
+        );
+        return;
+      }
+      if (block.kind === "quote") {
+        out.push(
+          <View key={key} style={styles.quote}>
+            <Text style={[styles.para, { fontStyle: "italic" }]}>{renderInline(block.text, key)}</Text>
+          </View>,
+        );
+        return;
+      }
+      if (block.kind === "list") {
+        out.push(
+          <View key={key}>
+            {block.items.map((entry, itemIndex) => (
+              <View key={`${key}-${itemIndex}`} style={styles.listRow}>
+                <Text style={styles.listMarker}>
+                  {block.ordered ? `${itemIndex + 1}.` : "·"}
+                </Text>
+                <Text style={[styles.para, styles.listText]}>{renderInline(entry, `${key}-${itemIndex}`)}</Text>
+              </View>
+            ))}
+          </View>,
+        );
+        return;
+      }
+      if (block.kind === "code") {
+        out.push(
+          <Text key={key} style={styles.code}>
+            {block.text}
+          </Text>,
+        );
+        return;
+      }
+      if (block.kind === "rule") {
+        out.push(<View key={key} style={styles.ruleBlock} />);
+        return;
+      }
+      if (block.kind === "image") {
+        out.push(
+          <ArticleImage key={key} src={block.src} alt={block.alt} colors={colors} />,
+        );
+        return;
+      }
+      // 段落：只有第一个段落做首字下沉
+      if (!dropCapUsed && block.kind === "para") {
+        const tokens = parseInline(block.text);
+        // 找第一个可拆字的纯文本 token
+        const plainIndex = tokens.findIndex((token) => !token.href && !token.code && token.text.length > 0);
+        if (plainIndex >= 0) {
+          dropCapUsed = true;
+          const head = tokens[plainIndex].text.slice(0, 1);
+          const restTokens = tokens.map((token, tokenIndex) =>
+            tokenIndex === plainIndex ? { ...token, text: token.text.slice(1) } : token,
+          );
+          out.push(
+            <View key={key} style={styles.dropRow}>
+              <Text style={styles.dropCap}>{head}</Text>
+              <Text style={[styles.para, styles.dropRest]}>{renderTokens(restTokens, key)}</Text>
+            </View>,
+          );
+          return;
+        }
+      }
+      out.push(
+        <Text key={key} style={styles.para}>
+          {renderInline(block.text, key)}
+        </Text>,
+      );
+    });
+    return out;
+  }
+
+  const blocks = useMemo(
+    () => (markdown ? parseBlocks(markdown) : []),
+    [markdown],
+  );
+  const hasBody = blocks.length > 0;
+
   return (
     <View style={styles.screen}>
       <View style={styles.topBar}>
@@ -377,88 +873,100 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           onPress={onBack}
           style={styles.back}
         >
-          <Icon name="ChevronLeft" size={22} color={theme.colors.foreground} />
+          <Icon name="ChevronLeft" size={22} color={colors.ink} />
         </Pressable>
+        <Text style={styles.topChannel} numberOfLines={1}>
+          {channelName(item)}
+        </Text>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
         <View style={styles.bodyColumn}>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.meta}>
-              {origin} · {formatWhen(publishedAt)}
+          <View style={styles.kickerRow}>
+            {item.badge ? <Text style={styles.badge}>{item.badge}</Text> : null}
+            <Text style={styles.kicker} numberOfLines={1}>
+              {site ?? origin} · {formatWhen(publishedAt)}
             </Text>
+          </View>
 
-            {visibleChips.length > 1 ? (
-              <View style={styles.versions}>
-                {visibleChips.map((entry) => {
-                  const available = availableVersion(entry.id);
-                  const active = entry.id === version;
-                  return (
-                    <Pressable
-                      key={entry.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`版本：${entry.title}`}
-                      disabled={!available || (entry.id === "translation" && translating)}
-                      onPress={() => {
-                        if (entry.id === "translation" && !versions.translation) {
-                          void startTranslate();
-                          return;
-                        }
-                        setVersion(entry.id);
-                      }}
-                      style={active ? styles.chipOn : available ? styles.chip : styles.chipOff}
-                    >
-                      <Text style={active ? styles.chipTextOn : styles.chipText}>{entry.title}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
+          <Text style={styles.title} numberOfLines={3}>
+            {item.title}
+          </Text>
 
-            {loading ? <Text style={styles.note}>正在取正文</Text> : null}
+          <View style={styles.rule} />
 
-            {error ? (
-              <View style={{ gap: 8 }}>
-                <Text style={styles.note}>
-                  {error instanceof Error ? error.message : "正文载入失败"}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="重试载入正文"
-                  onPress={() => void query.refetch()}
-                  style={styles.chip}
-                >
-                  <Text style={styles.chipText}>重试</Text>
-                </Pressable>
-              </View>
-            ) : null}
+          {visibleChips.length > 1 ? (
+            <View style={styles.tabs}>
+              {visibleChips.map((entry) => {
+                const available = availableVersion(entry.id);
+                const active = entry.id === version;
+                return (
+                  <Pressable
+                    key={entry.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`版本：${entry.title}`}
+                    disabled={!available || (entry.id === "translation" && translating)}
+                    onPress={() => {
+                      if (entry.id === "translation" && !versions.translation) {
+                        void startTranslate();
+                        return;
+                      }
+                      setVersion(entry.id);
+                    }}
+                    style={styles.tab}
+                  >
+                    <Text style={active ? styles.tabTextOn : styles.tabText}>{entry.title}</Text>
+                    <View style={active ? styles.tabUnderlineOn : styles.tabUnderline} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
 
-            {note && !loading ? <Text style={styles.note}>{note}</Text> : null}
+          {loading ? <Text style={styles.note}>正在取正文</Text> : null}
 
-            {translating ? (
+          {error ? (
+            <View style={{ gap: 8 }}>
               <Text style={styles.note}>
-                {translateSteps.total > 0
-                  ? `正在翻译 ${translateSteps.done}/${translateSteps.total} 段`
-                  : "准备翻译"}
+                {error instanceof Error ? error.message : "正文载入失败"}
               </Text>
-            ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="重试载入正文"
+                onPress={() => void query.refetch()}
+                style={styles.cancel}
+              >
+                <Text style={styles.cancelText}>重试</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
-            {translateError ? (
-              <View style={{ gap: 8 }}>
-                <Text style={styles.note}>{translateError}</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="重试翻译"
-                  onPress={() => void startTranslate()}
-                  style={styles.chip}
-                >
-                  <Text style={styles.chipText}>重试</Text>
-                </Pressable>
-              </View>
-            ) : null}
+          {note && !loading ? <Text style={styles.note}>{note}</Text> : null}
 
-            {markdown && !loading ? <Markdown>{markdown}</Markdown> : null}
-            {!markdown && !loading && !error ? <Text style={styles.note}>没有正文</Text> : null}
+          {translating ? (
+            <Text style={styles.note}>
+              {translateSteps.total > 0
+                ? `正在翻译 ${translateSteps.done}/${translateSteps.total} 段`
+                : "准备翻译"}
+            </Text>
+          ) : null}
+
+          {translateError ? (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.noteStrong}>{translateError}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="重试翻译"
+                onPress={() => void startTranslate()}
+                style={styles.cancel}
+              >
+                <Text style={styles.cancelText}>重试</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {hasBody && !loading ? renderBlocks(blocks) : null}
+          {!hasBody && !loading && !error ? <Text style={styles.note}>没有正文</Text> : null}
         </View>
       </ScrollView>
 
@@ -467,21 +975,19 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           accessibilityRole="button"
           accessibilityLabel="AI 陪读"
           onPress={() => void openCompanion()}
-          style={styles.primary}
+          style={styles.companion}
         >
-          <Text style={styles.primaryText}>AI 陪读</Text>
+          <Text style={styles.companionText}>AI 陪读</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={starred ? "取消收藏" : "收藏"}
           onPress={toggleStar}
-          style={[styles.iconGhost, starred ? { borderColor: theme.colors.accent } : null]}
+          style={styles.iconButton}
         >
-          <Icon
-            name="Star"
-            size={18}
-            color={starred ? theme.colors.accent : theme.colors.foreground}
-          />
+          <Text style={starred ? styles.starGlyphOn : styles.starGlyph}>
+            {starred ? "★" : "☆"}
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -489,9 +995,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           onPress={() => {
             void openExternalUrl(item.url).catch(() => toast.error("打不开这个链接"));
           }}
-          style={styles.iconGhost}
+          style={styles.iconButton}
         >
-          <Icon name="ArrowUpRight" size={18} color={theme.colors.foreground} />
+          <Icon name="ArrowUpRight" size={18} color={colors.ink} />
         </Pressable>
       </View>
 
@@ -502,29 +1008,30 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       >
         <Modal.Content contentContainerStyle={{ padding: 16 }}>
           <View style={styles.dialog}>
+            <Text style={styles.dialogHint}>以下内容将发送给最近活跃的 agent</Text>
             <ScrollView style={styles.preview}>
               <Text style={styles.previewText}>{companion.prompt}</Text>
             </ScrollView>
 
-            {companion.error ? <Text style={styles.note}>{companion.error}</Text> : null}
+            {companion.error ? <Text style={styles.noteStrong}>{companion.error}</Text> : null}
 
             <View style={styles.dialogActions}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="取消陪读"
                 onPress={() => setCompanion((state) => ({ ...state, open: false }))}
-                style={styles.ghost}
+                style={styles.cancel}
               >
-                <Text style={styles.ghostText}>取消</Text>
+                <Text style={styles.cancelText}>取消</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="发送给这个 agent"
                 disabled={!companion.agentId || companion.sending}
                 onPress={() => void sendCompanion()}
-                style={[styles.primary, styles.sendButton]}
+                style={styles.send}
               >
-                <Text style={styles.primaryText} numberOfLines={1}>
+                <Text style={styles.sendText} numberOfLines={1}>
                   {companion.sending ? "发送中" : "发送"}
                 </Text>
               </Pressable>

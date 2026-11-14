@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { FeedItem } from "../shared/feed";
+import { backfillSourceNames } from "./text/source-name";
 
 export const CACHE_DIR = path.join(os.homedir(), ".paseo", "data", "paseo-lantern");
 
@@ -42,6 +44,20 @@ export async function writeCache<T>(key: string, entry: CacheEntry<T>): Promise<
   } catch (error) {
     console.warn(`[lantern] cache write failed for ${key}`, error);
   }
+}
+
+/**
+ * 读条目缓存。旧缓存里的条目没有 site 字段，
+ * 读出后按 origin 反推补齐，再写回缓存。
+ */
+export async function readFeedCache(key: string): Promise<CacheEntry<FeedItem[]> | null> {
+  const entry = await readCache<FeedItem[]>(key);
+  if (!entry || !Array.isArray(entry.data)) return entry;
+  const { items, changed } = backfillSourceNames(entry.data);
+  if (!changed) return entry;
+  const next = { ...entry, data: items };
+  await writeCache(key, next);
+  return next;
 }
 
 /** 订阅正文缓存：只留最近 100 篇，超过 30 天的删掉 */

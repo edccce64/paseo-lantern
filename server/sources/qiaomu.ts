@@ -1,6 +1,7 @@
 import type { FeedItem, FeedState } from "../../shared/feed";
-import { readCache, writeCache } from "../cache";
+import { readCache, readFeedCache, writeCache } from "../cache";
 import { rateLimitMessage } from "../errors";
+import { cleanSourceName, displaySourceName } from "../text/source-name";
 import { getJson } from "./http";
 
 const TTL_MS = 10 * 60 * 1000;
@@ -61,11 +62,13 @@ function toItem(entry: QiaomuEntry, names: Map<string, string>): FeedItem {
   const publishedAt =
     entry.published ??
     (entry.publishedTs ? new Date(entry.publishedTs).toISOString() : new Date().toISOString());
+  const origin = names.get(entry.sourceId ?? "") ?? entry.sourceId ?? "乔木精选";
   return {
     id: entry.id,
     source: "qiaomu",
     title: entry.titleZh?.trim() || entry.title?.trim() || "(无标题)",
-    origin: names.get(entry.sourceId ?? "") ?? entry.sourceId ?? "乔木精选",
+    origin: displaySourceName(origin),
+    site: cleanSourceName(origin).site,
     summary: entry.summaryZh?.trim() || entry.summary?.trim() || null,
     url: entry.link ?? "https://rss.qiaomu.ai",
     siteUrl: null,
@@ -76,7 +79,7 @@ function toItem(entry: QiaomuEntry, names: Map<string, string>): FeedItem {
 
 export async function fetchQiaomu(limit: number, force: boolean): Promise<SourceResult> {
   const channel = "qiaomu";
-  const cached = await readCache<FeedItem[]>(channel);
+  const cached = await readFeedCache(channel);
   const fresh = cached !== null && Date.now() - cached.fetchedAt < TTL_MS;
   if (fresh && !force) {
     return { items: cached.data, fetchedAt: cached.fetchedAt, state: "cached" };

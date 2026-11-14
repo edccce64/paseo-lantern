@@ -12,6 +12,7 @@ import {
   subsRemoveRpc,
   subsSuggestRpc,
 } from "../shared/subs";
+import { FONT, palette } from "./style";
 
 type Props = {
   theme: PluginScreenProps["theme"];
@@ -19,6 +20,13 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
+
+type TabId = "subs" | "discover";
+
+const TABS: Array<{ id: TabId; label: string }> = [
+  { id: "subs", label: "已订阅" },
+  { id: "discover", label: "发现" },
+];
 
 export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   const toast = useToast();
@@ -30,11 +38,15 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   const exportSubs = useRpc(subsExportRpc);
   const suggest = useRpc(subsSuggestRpc);
 
+  const [tab, setTab] = useState<TabId>("subs");
   const [url, setUrl] = useState("");
   const [opml, setOpml] = useState("");
   const [showImport, setShowImport] = useState(false);
+  const [showRss, setShowRss] = useState(false);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  /** 正在等第二次确认的订阅 id */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   // 输入法组字时不要每敲一个拼音就发请求；停手 350ms 再搜
   useEffect(() => {
@@ -52,7 +64,8 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   const suggestions = useQuery({
     queryKey: ["lantern-suggest", needle],
     queryFn: () => suggest({ query: needle, limit: 8 }),
-    enabled: open && needle.length > 0,
+    // 目录在空查询时也返回推荐源，打开「发现」就有内容
+    enabled: open && tab === "discover",
     staleTime: 5 * 60 * 1000,
   });
 
@@ -75,7 +88,10 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
 
   const remove = useMutation({
     mutationFn: (id: string) => removeSub({ id }),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      setConfirmId(null);
+      invalidate();
+    },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "删除失败");
     },
@@ -95,222 +111,374 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   });
 
   const styles = useMemo(() => {
-    const horizontal = layout.compact ? 4 : 8;
+    const p = palette(theme);
+    const horizontal = layout.compact ? 16 : 20;
     return {
-      content: { gap: 12, paddingHorizontal: horizontal },
-      row: {
-        paddingVertical: 10,
-        gap: 4,
+      p,
+      horizontal,
+      // 栏目横排：像报纸的栏目头，选中的那条压一条 accent 线
+      tabBar: {
+        flexDirection: "row" as const,
         borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
+        borderBottomColor: p.rule,
       },
-      rowTitle: { color: theme.colors.foreground, fontSize: 15, lineHeight: 21 },
-      rowUrl: { color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 17 },
-      rowLine: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12 },
-      grow: { flex: 1 },
-      input: {
-        minHeight: 44,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: 10,
-        paddingHorizontal: 12,
+      tab: {
+        flex: 1,
+        alignItems: "center" as const,
+        paddingVertical: 11,
+      },
+      tabLabel: {
+        fontFamily: FONT.mono,
+        fontSize: 12,
+        letterSpacing: 1.4,
+        paddingBottom: 3,
+        borderBottomWidth: 2,
+        borderBottomColor: "transparent",
+      },
+      tabLabelOn: { color: p.accent, borderBottomColor: p.accent },
+      tabLabelOff: { color: p.muted },
+      body: { paddingHorizontal: horizontal, paddingTop: 14, paddingBottom: 18 },
+      row: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 12,
         paddingVertical: 10,
-        color: theme.colors.foreground,
+        borderBottomWidth: 1,
+        borderBottomColor: p.rule,
+      },
+      rowBody: { flex: 1, gap: 3 },
+      itemTitle: {
+        fontFamily: FONT.serif,
+        color: p.ink,
         fontSize: 15,
+        lineHeight: 21,
+      },
+      itemUrl: { fontFamily: FONT.mono, color: p.muted, fontSize: 11, lineHeight: 16 },
+      iconButton: {
+        width: 28,
+        height: 28,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+      },
+      iconGlyph: { fontFamily: FONT.sans, color: p.muted, fontSize: 18, lineHeight: 20 },
+      confirmRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+      confirmText: { fontFamily: FONT.sans, color: p.inkSoft, fontSize: 12 },
+      smallButton: {
+        minHeight: 28,
+        paddingHorizontal: 10,
+        justifyContent: "center" as const,
+        alignItems: "center" as const,
+        borderWidth: 1,
+        borderRadius: 2,
+      },
+      smallButtonOn: { borderColor: p.accent },
+      smallButtonOnText: { fontFamily: FONT.sans, color: p.accent, fontSize: 12 },
+      smallButtonOff: { borderColor: p.rule },
+      smallButtonOffText: { fontFamily: FONT.sans, color: p.muted, fontSize: 12 },
+      outlineRow: { flexDirection: "row" as const, gap: 10, marginTop: 14 },
+      outlineButton: {
+        flex: 1,
+        minHeight: 38,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        borderWidth: 1,
+        borderColor: p.rule,
+        borderRadius: 2,
+      },
+      outlineText: { fontFamily: FONT.sans, color: p.ink, fontSize: 13 },
+      input: {
+        minHeight: 40,
+        borderWidth: 1,
+        borderColor: p.rule,
+        borderRadius: 2,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        color: p.ink,
+        backgroundColor: p.panel,
+        fontFamily: FONT.sans,
+        fontSize: 14,
       },
       area: {
         minHeight: 96,
         borderWidth: 1,
-        borderColor: theme.colors.border,
-        borderRadius: 10,
+        borderColor: p.rule,
+        borderRadius: 2,
         paddingHorizontal: 12,
         paddingVertical: 10,
-        color: theme.colors.foreground,
-        fontSize: 13,
+        color: p.ink,
+        backgroundColor: p.panel,
+        fontFamily: FONT.mono,
+        fontSize: 12,
         textAlignVertical: "top" as const,
       },
-      action: {
-        minHeight: 44,
+      solidButton: {
+        minHeight: 40,
         paddingHorizontal: 16,
         justifyContent: "center" as const,
         alignItems: "center" as const,
-        borderRadius: 10,
-        backgroundColor: theme.colors.accent,
+        borderRadius: 2,
+        backgroundColor: p.accent,
       },
-      actionText: { color: theme.colors.accentForeground, fontSize: 15 },
-      ghost: {
-        minHeight: 44,
-        paddingHorizontal: 16,
+      solidText: { fontFamily: FONT.sans, color: p.paper, fontSize: 13 },
+      foldRow: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        justifyContent: "space-between" as const,
+        paddingVertical: 8,
+      },
+      foldText: { fontFamily: FONT.mono, color: p.inkSoft, fontSize: 11, letterSpacing: 1 },
+      foldMark: { fontFamily: FONT.mono, color: p.accent, fontSize: 14 },
+      kicker: {
+        fontFamily: FONT.mono,
+        color: p.muted,
+        fontSize: 10,
+        letterSpacing: 2,
+        marginTop: 14,
+        marginBottom: 2,
+      },
+      empty: { fontFamily: FONT.sans, color: p.muted, fontSize: 13, paddingVertical: 12 },
+      note: { fontFamily: FONT.sans, color: p.muted, fontSize: 12, paddingVertical: 8 },
+      subscribeButton: {
+        minHeight: 30,
+        paddingHorizontal: 12,
         justifyContent: "center" as const,
         alignItems: "center" as const,
-        borderRadius: 10,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: p.accent,
+        borderRadius: 2,
       },
-      ghostText: { color: theme.colors.foreground, fontSize: 14 },
-      link: { color: theme.colors.statusDanger, fontSize: 14, paddingVertical: 8 },
-      linkAction: { color: theme.colors.accent, fontSize: 14, paddingVertical: 8 },
-      note: { color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 18 },
-      actions: { flexDirection: "row" as const, gap: 10 },
+      subscribeText: { fontFamily: FONT.sans, color: p.accent, fontSize: 12 },
+      subscribedText: { fontFamily: FONT.mono, color: p.muted, fontSize: 11, letterSpacing: 1 },
     };
   }, [theme, layout.compact]);
 
   const items = query.data?.items ?? [];
 
-  return (
-    <Modal title="订阅管理" open={open} onOpenChange={onOpenChange}>
-      <Modal.Content contentContainerStyle={{ padding: 16, gap: 16 }}>
-          <View style={{ gap: 0 }}>
-              {items.length === 0 ? (
-                <Text style={styles.note}>还没有订阅</Text>
-              ) : null}
-              {items.map((item) => (
-                <View key={item.id} style={styles.row}>
-                  <View style={styles.rowLine}>
-                    <View style={styles.grow}>
-                      <Text style={styles.rowTitle} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.rowUrl} numberOfLines={1}>
-                        {item.url}
-                      </Text>
-                    </View>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`删除订阅：${item.title}`}
-                      disabled={remove.isPending}
-                      onPress={() => remove.mutate(item.id)}
-                    >
-                      <Text style={styles.link}>删除</Text>
-                    </Pressable>
-                  </View>
+  function renderSubscribed() {
+    return (
+      <View style={{ paddingHorizontal: styles.horizontal, paddingTop: 14, paddingBottom: 18 }}>
+        {items.length === 0 ? <Text style={styles.empty}>还没有订阅</Text> : null}
+        {items.map((item) => {
+          const confirming = confirmId === item.id;
+          return (
+            <View key={item.id} style={styles.row}>
+              <View style={styles.rowBody}>
+                <Text style={styles.itemTitle} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <Text style={styles.itemUrl} numberOfLines={1}>
+                  {item.url}
+                </Text>
+              </View>
+              {confirming ? (
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmText}>删除？</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`确认删除：${item.title}`}
+                    disabled={remove.isPending}
+                    onPress={() => remove.mutate(item.id)}
+                    style={[styles.smallButton, styles.smallButtonOn]}
+                  >
+                    <Text style={styles.smallButtonOnText}>
+                      {remove.isPending ? "删除中" : "删掉"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`取消删除：${item.title}`}
+                    onPress={() => setConfirmId(null)}
+                    style={[styles.smallButton, styles.smallButtonOff]}
+                  >
+                    <Text style={styles.smallButtonOffText}>取消</Text>
+                  </Pressable>
                 </View>
-              ))}
-          </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`删除订阅：${item.title}`}
+                  hitSlop={8}
+                  onPress={() => setConfirmId(item.id)}
+                  style={styles.iconButton}
+                >
+                  <Text style={styles.iconGlyph}>×</Text>
+                </Pressable>
+              )}
+            </View>
+          );
+        })}
 
-          <View style={styles.rowLine}>
+        <View style={styles.outlineRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="导入 OPML"
+            onPress={() => setShowImport((value) => !value)}
+            style={styles.outlineButton}
+          >
+            <Text style={styles.outlineText}>导入 OPML</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="导出 OPML"
+            onPress={() => {
+              void (async () => {
+                try {
+                  const result = await exportSubs({});
+                  await copyText(result.opml);
+                  toast.show("OPML 已复制到剪贴板", { variant: "success" });
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "导出失败");
+                }
+              })();
+            }}
+            style={styles.outlineButton}
+          >
+            <Text style={styles.outlineText}>导出 OPML</Text>
+          </Pressable>
+        </View>
+
+        {showImport ? (
+          <View style={{ gap: 10, marginTop: 12 }}>
+            <TextInput
+              value={opml}
+              onChangeText={setOpml}
+              placeholder="把 OPML 内容粘贴到这里"
+              placeholderTextColor={styles.p.muted}
+              multiline
+              style={styles.area}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="确认导入"
+              disabled={importOpml.isPending || opml.trim().length === 0}
+              onPress={() => importOpml.mutate(opml)}
+              style={styles.solidButton}
+            >
+              <Text style={styles.solidText}>
+                {importOpml.isPending ? "导入中" : "确认导入"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  function renderDiscover() {
+    const resultCount = suggestions.data?.items.length ?? 0;
+    return (
+      <View style={{ paddingHorizontal: styles.horizontal, paddingTop: 14, paddingBottom: 18 }}>
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="搜博客、作者或标签"
+          placeholderTextColor={styles.p.muted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+        />
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="用 RSS 地址添加"
+          onPress={() => setShowRss((value) => !value)}
+          style={styles.foldRow}
+        >
+          <Text style={styles.foldText}>用 RSS 地址添加</Text>
+          <Text style={styles.foldMark}>{showRss ? "−" : "+"}</Text>
+        </Pressable>
+
+        {showRss ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <TextInput
               value={url}
               onChangeText={setUrl}
               placeholder="https://example.com/feed.xml"
-              placeholderTextColor={theme.colors.foregroundMuted}
+              placeholderTextColor={styles.p.muted}
               autoCapitalize="none"
               autoCorrect={false}
-              style={[styles.input, styles.grow]}
+              style={[styles.input, { flex: 1 }]}
             />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="添加订阅"
               disabled={add.isPending || url.trim().length === 0}
               onPress={() => add.mutate({ url: url.trim() })}
-              style={styles.action}
+              style={styles.solidButton}
             >
-              <Text style={styles.actionText}>{add.isPending ? "添加中" : "添加"}</Text>
+              <Text style={styles.solidText}>{add.isPending ? "添加中" : "添加"}</Text>
             </Pressable>
           </View>
+        ) : null}
 
-          <View style={{ gap: 8 }}>
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="搜博客、作者或标签"
-              placeholderTextColor={theme.colors.foregroundMuted}
-              style={styles.input}
-            />
-            {needle.length > 0 ? (
-              <View>
-                {suggestions.isPending ? (
-                  <Text style={styles.note}>正在搜</Text>
-                ) : (suggestions.data?.items.length ?? 0) === 0 ? (
-                  <Text style={styles.note}>没有匹配的源</Text>
-                ) : (
-                  suggestions.data?.items.map((entry) => {
-                    const subscribed = items.some((item) => item.url === entry.url);
-                    return (
-                      <View key={entry.url} style={styles.row}>
-                        <View style={styles.rowLine}>
-                          <View style={styles.grow}>
-                            <Text style={styles.rowTitle} numberOfLines={1}>
-                              {entry.name}
-                            </Text>
-                            <Text style={styles.rowUrl} numberOfLines={1}>
-                              {entry.tags.length > 0 ? entry.tags.join(" · ") : entry.url}
-                            </Text>
-                          </View>
-                          {subscribed ? (
-                            <Text style={styles.note}>已订阅</Text>
-                          ) : (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel={`订阅：${entry.name}`}
-                              disabled={add.isPending}
-                              hitSlop={8}
-                              onPress={() => add.mutate({ url: entry.url, title: entry.name })}
-                            >
-                              <Text style={styles.linkAction}>订阅</Text>
-                            </Pressable>
-                          )}
-                        </View>
-                      </View>
-                    );
-                  })
-                )}
-              </View>
-            ) : null}
+        {suggestions.isPending ? (
+          <Text style={styles.note}>正在搜</Text>
+        ) : resultCount === 0 ? (
+          <Text style={styles.empty}>没有匹配的源</Text>
+        ) : (
+          <View>
+            {needle.length === 0 ? <Text style={styles.kicker}>推荐源</Text> : null}
+            {suggestions.data?.items.map((entry) => {
+              const subscribed = items.some((item) => item.url === entry.url);
+              const meta = [entry.site, entry.tags.join(" · ")].filter(Boolean).join(" · ");
+              return (
+                <View key={entry.url} style={styles.row}>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>
+                      {entry.name}
+                    </Text>
+                    <Text style={styles.itemUrl} numberOfLines={1}>
+                      {meta.length > 0 ? meta : entry.url}
+                    </Text>
+                  </View>
+                  {subscribed ? (
+                    <Text style={styles.subscribedText}>已订阅</Text>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`订阅：${entry.name}`}
+                      disabled={add.isPending}
+                      onPress={() => add.mutate({ url: entry.url, title: entry.name })}
+                      style={styles.subscribeButton}
+                    >
+                      <Text style={styles.subscribeText}>订阅</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })}
           </View>
+        )}
+      </View>
+    );
+  }
 
-          <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="导入 OPML"
-              onPress={() => setShowImport((value) => !value)}
-              style={[styles.ghost, styles.grow]}
-            >
-              <Text style={styles.ghostText}>{showImport ? "收起导入" : "导入 OPML"}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="导出 OPML"
-              onPress={() => {
-                void (async () => {
-                  try {
-                    const result = await exportSubs({});
-                    await copyText(result.opml);
-                    toast.show("OPML 已复制到剪贴板", { variant: "success" });
-                  } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "导出失败");
-                  }
-                })();
-              }}
-              style={[styles.ghost, styles.grow]}
-            >
-              <Text style={styles.ghostText}>导出 OPML</Text>
-            </Pressable>
-          </View>
-
-          {showImport ? (
-            <View style={{ gap: 10 }}>
-              <TextInput
-                value={opml}
-                onChangeText={setOpml}
-                placeholder="把 OPML 内容粘贴到这里"
-                placeholderTextColor={theme.colors.foregroundMuted}
-                multiline
-                style={styles.area}
-              />
+  return (
+    <Modal title="订阅管理" open={open} onOpenChange={onOpenChange}>
+      <Modal.Content
+        style={{ backgroundColor: styles.p.paper }}
+        contentContainerStyle={{ padding: 0, gap: 0 }}
+      >
+        <View style={styles.tabBar}>
+          {TABS.map((entry) => {
+            const active = tab === entry.id;
+            return (
               <Pressable
+                key={entry.id}
                 accessibilityRole="button"
-                accessibilityLabel="确认导入"
-                disabled={importOpml.isPending || opml.trim().length === 0}
-                onPress={() => importOpml.mutate(opml)}
-                style={styles.action}
+                accessibilityLabel={entry.label}
+                onPress={() => setTab(entry.id)}
+                style={styles.tab}
               >
-                <Text style={styles.actionText}>
-                  {importOpml.isPending ? "导入中" : "确认导入"}
+                <Text style={[styles.tabLabel, active ? styles.tabLabelOn : styles.tabLabelOff]}>
+                  {entry.label}
                 </Text>
               </Pressable>
-            </View>
-          ) : null}
+            );
+          })}
+        </View>
+
+        {tab === "subs" ? renderSubscribed() : renderDiscover()}
       </Modal.Content>
     </Modal>
   );

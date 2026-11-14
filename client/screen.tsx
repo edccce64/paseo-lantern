@@ -1,9 +1,9 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { openExternalUrl, useRpc, useSettings } from "@getpaseo/plugin/client";
+import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import { FlatList, Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, Pressable, Text, TextInput, View } from "react-native";
 import { type ChannelId, type FeedItem, type FeedState, listRpc } from "../shared/feed";
 import {
   EMPTY_STATE,
@@ -13,12 +13,13 @@ import {
   lanternStateSettings,
 } from "../shared/settings";
 import { ArticleView } from "./article";
+import { FONT, LABEL, SECTION, palette } from "./style";
 import { SubsPanel } from "./subs-panel";
 
 /** 频道来自服务端，收藏是本地伪频道：直接用 settings 里的快照渲染 */
 type ViewChannel = ChannelId | "star";
 
-const CHIPS: Array<{ id: ViewChannel; title: string; full: string }> = [
+const CHANNELS: Array<{ id: ViewChannel; title: string; full: string }> = [
   { id: "aihot-selected", title: "精选", full: "AIHOT 精选" },
   { id: "aihot-hot", title: "热点", full: "AIHOT 热点" },
   { id: "qiaomu", title: "乔木", full: "乔木精选" },
@@ -47,6 +48,18 @@ function formatTime(iso: string): string {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
+const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+/** 2026年11月14日 · 星期六 */
+function formatToday(now: Date): string {
+  return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · ${WEEKDAYS[now.getDay()]}`;
+}
+
+/** 11月14日 */
+function formatTodayShort(now: Date): string {
+  return `${now.getMonth() + 1}月${now.getDate()}日`;
+}
+
 function stateLabel(state: FeedState): string {
   switch (state) {
     case "live":
@@ -58,6 +71,12 @@ function stateLabel(state: FeedState): string {
     case "stale":
       return "离线缓存";
   }
+}
+
+/** 来源短名：服务端给了 site 就用 site，否则退回 origin */
+function sourceName(item: FeedItem): string {
+  const site = (item as { site?: string | null }).site ?? null;
+  return site ?? item.origin ?? "";
 }
 
 export type LanternSurfaceProps = Pick<PluginScreenProps, "theme" | "layout">;
@@ -76,6 +95,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const [channel, setChannel] = useState<ViewChannel>("aihot-selected");
   const [openItem, setOpenItem] = useState<FeedItem | null>(null);
   const [subsOpen, setSubsOpen] = useState(false);
+  const [keyword, setKeyword] = useState("");
 
   const state = settings.status === "ready" ? settings.values : EMPTY_STATE;
 
@@ -104,63 +124,181 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
   const [refreshing, setRefreshing] = useState(false);
 
+  // 刷新时图标转圈
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!refreshing) {
+      spin.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [refreshing, spin]);
+  const spinStyle = {
+    transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }],
+  };
+
+  const colors = useMemo(() => palette(theme), [theme]);
+
   const styles = useMemo(() => {
-    // 列表在手机上占满宽度，在桌面上是 320 的窄栏，两类都用 16 的内边距
+    const p = colors;
     const horizontal = 16;
     return {
-      screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+      screen: { flex: 1, backgroundColor: p.paper },
       wideList: {
         // 380 是五个频道标签一行放得下的最小宽度，再窄「收藏」会掉行
         width: 380,
         borderRightWidth: 1,
-        borderRightColor: theme.colors.border,
+        borderRightColor: p.rule,
       },
       wideBody: {
         flex: 1,
         alignItems: "stretch" as const,
-        justifyContent: "center" as const,
+        justifyContent: "flex-start" as const,
       },
-      wideEmpty: { flex: 1, alignItems: "center" as const, justifyContent: "center" as const, gap: 10 },
-      chipBar: {
-        flexDirection: "row" as const,
-        alignItems: "flex-start" as const,
+
+      // 报头
+      masthead: {
+        backgroundColor: p.paper,
         paddingHorizontal: horizontal,
-        paddingTop: 12,
-        paddingBottom: 4,
-        gap: 8,
+        paddingTop: 14,
+        paddingBottom: 10,
+        alignItems: "center" as const,
       },
-      chipGroup: {
-        flex: 1,
+      vol: { ...LABEL, color: p.muted, textAlign: "center" as const },
+      wordmark: {
+        marginTop: 6,
+        fontFamily: FONT.serif,
+        fontSize: layout.compact ? 28 : 26,
+        fontWeight: "700" as const,
+        letterSpacing: 6,
+        color: p.ink,
+        textAlign: "center" as const,
+      },
+      refreshButton: {
+        position: "absolute" as const,
+        right: 12,
+        bottom: 10,
+        minHeight: 32,
+        paddingHorizontal: 6,
         flexDirection: "row" as const,
-        flexWrap: "wrap" as const,
+        alignItems: "center" as const,
         gap: 6,
       },
-      chipActions: { flexDirection: "row" as const, gap: 2 },
-      iconButton: {
-        width: 36,
-        height: 36,
+      refreshLabel: { fontFamily: FONT.sans, fontSize: 12, color: p.accent },
+      // 报头底部的双线：一条 3px 墨线，紧接一条 1px 墨线
+      ruleThick: { height: 3, backgroundColor: p.ink },
+      ruleThin: { height: 1, backgroundColor: p.ink },
+
+      // 栏目横排
+      channelRow: {
+        flexDirection: "row" as const,
+        backgroundColor: p.paper,
+      },
+      channelCell: {
+        flex: 1,
         alignItems: "center" as const,
-        justifyContent: "center" as const,
-        borderRadius: 18,
+        paddingVertical: 10,
+        borderRightWidth: 1,
+        borderRightColor: p.rule,
       },
-      chip: {
-        minHeight: layout.compact ? 44 : 36,
-        paddingHorizontal: 12,
-        justifyContent: "center" as const,
-        borderRadius: 999,
+      channelText: { ...SECTION, color: p.ink },
+      channelTextActive: { ...SECTION, color: p.accent, fontWeight: "700" as const },
+      // 选中线单独一行，未选中处保持空白，文字基线不跳
+      channelMarks: { flexDirection: "row" as const, height: 3, backgroundColor: p.paper },
+      channelMark: { flex: 1 },
+      channelMarkActive: { flex: 1, backgroundColor: p.accent },
+      channelRule: { height: 1, backgroundColor: p.ink },
+
+      // 搜索
+      searchWrap: {
+        paddingHorizontal: horizontal,
+        paddingVertical: 10,
+        backgroundColor: p.paper,
+        borderBottomWidth: 1,
+        borderBottomColor: p.rule,
+      },
+      searchInput: {
+        fontFamily: FONT.sans,
+        fontSize: 13.5,
+        color: p.ink,
+        backgroundColor: p.panel,
         borderWidth: 1,
-        borderColor: theme.colors.border,
-        backgroundColor: theme.colors.surface1,
+        borderColor: p.rule,
+        borderRadius: 2,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
       },
-      chipActive: {
-        minHeight: layout.compact ? 44 : 36,
-        paddingHorizontal: 12,
+
+      // 列表
+      row: {
+        paddingHorizontal: horizontal,
+        paddingVertical: 14,
+        flexDirection: "row" as const,
+      },
+      // 条目之间的 1px 分隔线，通栏
+      separator: {
+        height: 1,
+        marginHorizontal: horizontal,
+        backgroundColor: p.rule,
+      },
+      // 未读标记占固定一列，标题起点在所有条目上完全一致
+      markCol: { width: 10, alignItems: "flex-start" as const },
+      unreadMark: { width: 4, height: 4, marginTop: 7, backgroundColor: p.accent },
+      rowBody: { flex: 1, gap: 6 },
+      leadTitle: {
+        fontFamily: FONT.serif,
+        fontSize: 26,
+        fontWeight: "700" as const,
+        lineHeight: 36.4,
+        color: p.ink,
+      },
+      leadTitleRead: { color: p.muted },
+      leadSummary: {
+        fontFamily: FONT.sans,
+        fontSize: 13.5,
+        lineHeight: 21,
+        color: p.inkSoft,
+        marginTop: 4,
+      },
+      itemTitle: {
+        fontFamily: FONT.serif,
+        fontSize: 17,
+        fontWeight: "700" as const,
+        lineHeight: 24.7,
+        color: p.ink,
+      },
+      itemTitleRead: { color: p.muted },
+      byline: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 8,
+        marginTop: 9,
+      },
+      bylineText: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 0.6, color: p.muted },
+      bylineHair: { flex: 1, height: 1, backgroundColor: p.rule },
+
+      // 空态与错误
+      state: { padding: 32, alignItems: "center" as const, gap: 10 },
+      stateText: { fontFamily: FONT.sans, fontSize: 14, textAlign: "center" as const, color: p.muted },
+      retry: {
+        minHeight: 44,
+        paddingHorizontal: 20,
         justifyContent: "center" as const,
-        borderRadius: 999,
-        backgroundColor: theme.colors.accent,
+        borderRadius: 2,
+        backgroundColor: p.accent,
       },
-      chipText: { color: theme.colors.foreground, fontSize: 13.5 },
-      chipTextActive: { color: theme.colors.accentForeground, fontSize: 13.5 },
+      retryText: { fontFamily: FONT.sans, fontSize: 15, fontWeight: "700" as const, color: p.paper },
+
+      // 页脚
       footer: {
         paddingHorizontal: horizontal,
         paddingVertical: 12,
@@ -168,8 +306,10 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         alignItems: "center" as const,
         justifyContent: "space-between" as const,
         gap: 12,
+        borderTopWidth: 1,
+        borderTopColor: p.rule,
       },
-      footerText: { color: theme.colors.foregroundMuted, fontSize: 11 },
+      footerText: { fontFamily: FONT.mono, fontSize: 11, letterSpacing: 0.6, color: p.muted },
       footerEntry: {
         minHeight: 44,
         flexDirection: "row" as const,
@@ -177,44 +317,46 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         gap: 6,
         paddingLeft: 8,
       },
-      footerEntryText: { color: theme.colors.foregroundMuted, fontSize: 12 },
-      row: {
-        paddingHorizontal: horizontal,
-        paddingVertical: 13,
+      footerEntryText: { fontFamily: FONT.sans, fontSize: 12, color: p.ink },
+
+      // 桌面右栏：今日速览
+      brief: {
+        paddingHorizontal: 30,
+        paddingVertical: 28,
+        gap: 14,
+      },
+      briefTitle: {
+        fontFamily: FONT.serif,
+        fontSize: 24,
+        fontWeight: "700" as const,
+        letterSpacing: 3,
+        color: p.ink,
+      },
+      briefDate: { fontFamily: FONT.serif, fontSize: 15, color: p.accent },
+      briefChannel: { fontFamily: FONT.serif, fontSize: 18, color: p.ink },
+      briefCount: { fontFamily: FONT.serif, fontSize: 14, color: p.muted },
+      briefCountNum: { fontFamily: FONT.serif, fontSize: 30, fontWeight: "700" as const, color: p.accent },
+      briefLatest: {
+        fontFamily: FONT.serif,
+        fontSize: 17,
+        lineHeight: 25,
+        color: p.ink,
+        marginTop: 4,
+      },
+      briefMeta: { fontFamily: FONT.serif, fontSize: 13, color: p.muted },
+      briefActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, marginTop: 6 },
+      briefAction: {
+        minHeight: 40,
+        paddingHorizontal: 14,
         flexDirection: "row" as const,
+        alignItems: "center" as const,
         gap: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
+        borderWidth: 1,
+        borderColor: p.ink,
       },
-      // 未读标记占固定一列，标题起点在所有条目上完全一致
-      markCol: { width: 7, alignItems: "flex-start" as const },
-      rowBody: { flex: 1, gap: 5 },
-      unreadDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 999,
-        marginTop: 9,
-        backgroundColor: theme.colors.accent,
-      },
-      rowTitle: {
-        color: theme.colors.foreground,
-        fontSize: layout.compact ? 16 : 17,
-        lineHeight: layout.compact ? 24 : 26,
-      },
-      metaRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
-      meta: { color: theme.colors.foregroundMuted, fontSize: 12, lineHeight: 18 },
-      state: { padding: 32, alignItems: "center" as const, gap: 10 },
-      stateText: { color: theme.colors.foregroundMuted, fontSize: 14, textAlign: "center" as const },
-      retry: {
-        minHeight: 44,
-        paddingHorizontal: 20,
-        justifyContent: "center" as const,
-        borderRadius: 10,
-        backgroundColor: theme.colors.accent,
-      },
-      retryText: { color: theme.colors.accentForeground, fontSize: 15 },
+      briefActionText: { fontFamily: FONT.serif, fontSize: 13, color: p.ink },
     };
-  }, [theme, layout.compact]);
+  }, [colors, layout.compact]);
 
   async function refresh() {
     if (channel === "star") return;
@@ -229,7 +371,51 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     }
   }
 
-  function renderRow(item: FeedItem) {
+  const isStarChannel = channel === "star";
+  const rawData = useMemo(
+    () => (isStarChannel ? state.star : (query.data?.items ?? [])),
+    [isStarChannel, state.star, query.data?.items],
+  );
+
+  // 搜索只过滤当前频道，不动已读与收藏
+  const data = useMemo(() => {
+    const key = keyword.trim().toLowerCase();
+    if (!key) return rawData;
+    return rawData.filter((item) => {
+      return (
+        item.title.toLowerCase().includes(key) ||
+        sourceName(item).toLowerCase().includes(key) ||
+        (item.origin ?? "").toLowerCase().includes(key)
+      );
+    });
+  }, [rawData, keyword]);
+
+  const isPending = !isStarChannel && query.isPending;
+  const isError = !isStarChannel && query.isError;
+  const statusText = isStarChannel
+    ? `${state.star.length} 条收藏`
+    : query.data
+      ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
+      : "";
+
+  const channelMeta = CHANNELS.find((entry) => entry.id === channel);
+  const today = useMemo(() => new Date(), []);
+
+  function renderByline(item: FeedItem) {
+    return (
+      <View style={styles.byline}>
+        <Text style={styles.bylineText} numberOfLines={1}>
+          {sourceName(item)}
+        </Text>
+        <View style={styles.bylineHair} />
+        <Text style={styles.bylineText} numberOfLines={1}>
+          {formatTime(item.publishedAt)}
+        </Text>
+      </View>
+    );
+  }
+
+  function renderRow(item: FeedItem, isLead: boolean) {
     const unread = !state.read.includes(itemKey(item));
     return (
       <Pressable
@@ -238,33 +424,27 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         onPress={() => open(item)}
         style={styles.row}
       >
-        <View style={styles.markCol}>{unread ? <View style={styles.unreadDot} /> : null}</View>
+        <View style={styles.markCol}>{unread ? <View style={styles.unreadMark} /> : null}</View>
         <View style={styles.rowBody}>
-          <Text style={styles.rowTitle} numberOfLines={2}>
+          <Text
+            style={[
+              isLead ? styles.leadTitle : styles.itemTitle,
+              unread ? null : isLead ? styles.leadTitleRead : styles.itemTitleRead,
+            ]}
+            numberOfLines={isLead ? 3 : 2}
+          >
             {item.title}
           </Text>
-          <View style={styles.metaRow}>
-            <Text style={[styles.meta, { flexShrink: 1 }]} numberOfLines={1}>
-              {item.origin ?? ""}
+          {isLead && item.summary ? (
+            <Text style={styles.leadSummary} numberOfLines={2}>
+              {item.summary}
             </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {formatTime(item.publishedAt)}
-            </Text>
-          </View>
+          ) : null}
+          {renderByline(item)}
         </View>
       </Pressable>
     );
   }
-
-  const isStarChannel = channel === "star";
-  const data = isStarChannel ? state.star : (query.data?.items ?? []);
-  const isPending = !isStarChannel && query.isPending;
-  const isError = !isStarChannel && query.isError;
-  const statusText = isStarChannel
-    ? `${state.star.length} 条收藏`
-    : query.data
-      ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
-      : "";
 
   const articlePane = openItem ? (
     <ArticleView
@@ -277,43 +457,78 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
   const listPane = (
     <View style={styles.screen}>
-      <View style={styles.chipBar}>
-        <View style={styles.chipGroup}>
-          {CHIPS.map((entry) => {
-            const active = entry.id === channel;
-            return (
-              <Pressable
-                key={entry.id}
-                accessibilityRole="button"
-                accessibilityLabel={`频道：${entry.full}`}
-                onPress={() => setChannel(entry.id)}
-                style={active ? styles.chipActive : styles.chip}
-              >
-                <Text style={active ? styles.chipTextActive : styles.chipText}>{entry.title}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.chipActions}>
-          {isStarChannel ? null : (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="刷新"
-              disabled={refreshing}
-              onPress={() => void refresh()}
-              hitSlop={6}
-              style={styles.iconButton}
-            >
+      <View style={styles.masthead}>
+        <Text style={styles.vol}>
+          {formatToday(today)} · 今日 {rawData.length} 条
+        </Text>
+        <Text style={styles.wordmark}>提灯日报</Text>
+        {isStarChannel ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="刷新"
+            disabled={refreshing}
+            onPress={() => void refresh()}
+            hitSlop={6}
+            style={styles.refreshButton}
+          >
+            <Animated.View style={spinStyle}>
               <Icon
                 name="RotateCw"
                 size={17}
-                color={refreshing ? theme.colors.accent : theme.colors.foregroundMuted}
+                color={refreshing ? colors.accent : colors.muted}
               />
-            </Pressable>
-          )}
-        </View>
+            </Animated.View>
+            {refreshing ? <Text style={styles.refreshLabel}>刷新中</Text> : null}
+          </Pressable>
+        )}
       </View>
+      <View style={styles.ruleThick} />
+      <View style={styles.ruleThin} />
+
+      <View style={styles.channelRow}>
+        {CHANNELS.map((entry, index) => {
+          const active = entry.id === channel;
+          return (
+            <Pressable
+              key={entry.id}
+              accessibilityRole="button"
+              accessibilityLabel={`频道：${entry.full}`}
+              onPress={() => setChannel(entry.id)}
+              style={[
+                styles.channelCell,
+                { borderRightWidth: index === CHANNELS.length - 1 ? 0 : 1 },
+              ]}
+            >
+              <Text style={active ? styles.channelTextActive : styles.channelText}>
+                {entry.title}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.channelMarks}>
+        {CHANNELS.map((entry) => (
+          <View
+            key={entry.id}
+            style={entry.id === channel ? styles.channelMarkActive : styles.channelMark}
+          />
+        ))}
+      </View>
+      <View style={styles.channelRule} />
+
+      {rawData.length > 0 ? (
+        <View style={styles.searchWrap}>
+          <TextInput
+            value={keyword}
+            onChangeText={setKeyword}
+            placeholder="搜标题或来源"
+            placeholderTextColor={colors.muted}
+            style={styles.searchInput}
+            returnKeyType="search"
+            accessibilityLabel="搜索"
+          />
+        </View>
+      ) : null}
 
       {isPending ? (
         <View style={styles.state}>
@@ -337,12 +552,13 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         <FlatList
           data={data}
           keyExtractor={(item) => `${item.source}-${item.id}`}
-          renderItem={({ item }) => renderRow(item)}
+          renderItem={({ item, index }) => renderRow(item, index === 0)}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
           refreshing={refreshing}
           onRefresh={() => void refresh()}
           contentContainerStyle={data.length === 0 ? { flexGrow: 1 } : undefined}
           ListFooterComponent={
-            data.length > 0 ? (
+            rawData.length > 0 ? (
               <View style={styles.footer}>
                 <Text style={[styles.footerText, { flex: 1 }]} numberOfLines={1}>
                   {statusText}
@@ -354,7 +570,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                     onPress={() => setSubsOpen(true)}
                     style={styles.footerEntry}
                   >
-                    <Icon name="Settings" size={15} color={theme.colors.foregroundMuted} />
+                    <Icon name="Settings" size={15} color={colors.ink} />
                     <Text style={styles.footerEntryText}>订阅管理</Text>
                   </Pressable>
                 ) : null}
@@ -363,14 +579,20 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           }
           ListEmptyComponent={
             <View style={styles.state}>
-              <Icon
-                name={isStarChannel ? "Star" : channel === "mine" ? "Plus" : "Inbox"}
-                size={26}
-                color={theme.colors.foregroundMuted}
-              />
-              <Text style={styles.stateText}>
-                {isStarChannel ? "还没有收藏" : channel === "mine" ? "还没有订阅" : "暂无内容"}
-              </Text>
+              {rawData.length > 0 ? (
+                <Text style={styles.stateText}>没有匹配的内容</Text>
+              ) : (
+                <>
+                  <Icon
+                    name={isStarChannel ? "Star" : channel === "mine" ? "Plus" : "Inbox"}
+                    size={26}
+                    color={colors.muted}
+                  />
+                  <Text style={styles.stateText}>
+                    {isStarChannel ? "还没有收藏" : channel === "mine" ? "还没有订阅" : "暂无内容"}
+                  </Text>
+                </>
+              )}
             </View>
           }
         />
@@ -387,14 +609,54 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
   // 桌面：左窄列列表，右侧读正文，选文章不替换整个界面
   if (!layout.compact) {
+    // 速览看的是整个频道，不受搜索影响
+    const latest = rawData[0] ?? null;
     return (
       <View style={[styles.screen, { flexDirection: "row" }]}>
         <View style={styles.wideList}>{listPane}</View>
         <View style={styles.wideBody}>
           {articlePane ?? (
-            <View style={styles.wideEmpty}>
-              <Icon name="Lamp" size={30} color={theme.colors.foregroundMuted} />
-              <Text style={styles.stateText}>选一篇文章</Text>
+            <View style={styles.brief}>
+              <Text style={styles.briefTitle}>今日速览</Text>
+              <Text style={styles.briefDate}>今天 {formatTodayShort(today)}</Text>
+              <Text style={styles.briefChannel}>{channelMeta?.full ?? ""}</Text>
+              <Text style={styles.briefCount}>
+                <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
+              </Text>
+              {latest ? (
+                <>
+                  <Text style={styles.briefLatest} numberOfLines={2}>
+                    {latest.title}
+                  </Text>
+                  <Text style={styles.briefMeta}>
+                    {sourceName(latest)} · {formatTime(latest.publishedAt)}
+                  </Text>
+                </>
+              ) : null}
+              <View style={styles.briefActions}>
+                {isStarChannel ? null : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="刷新"
+                    onPress={() => void refresh()}
+                    style={styles.briefAction}
+                  >
+                    <Icon name="RotateCw" size={15} color={colors.ink} />
+                    <Text style={styles.briefActionText}>刷新</Text>
+                  </Pressable>
+                )}
+                {channel === "mine" ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="订阅管理"
+                    onPress={() => setSubsOpen(true)}
+                    style={styles.briefAction}
+                  >
+                    <Icon name="Settings" size={15} color={colors.ink} />
+                    <Text style={styles.briefActionText}>订阅管理</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           )}
         </View>

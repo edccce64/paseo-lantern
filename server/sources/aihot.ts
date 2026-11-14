@@ -1,6 +1,7 @@
 import type { FeedItem, FeedState } from "../../shared/feed";
-import { readCache, writeCache } from "../cache";
+import { readFeedCache, writeCache } from "../cache";
 import { rateLimitMessage } from "../errors";
+import { cleanSourceName, displaySourceName } from "../text/source-name";
 import { getJson } from "./http";
 
 const TTL_MS = 10 * 60 * 1000;
@@ -36,11 +37,13 @@ export type SourceResult = {
 };
 
 function toSelectedItem(item: AihotItem): FeedItem {
+  const origin = item.source?.name ?? "AIHOT";
   return {
     id: item.id,
     source: "aihot",
     title: item.title,
-    origin: item.source?.name ?? "AIHOT",
+    origin: displaySourceName(origin),
+    site: cleanSourceName(origin).site,
     summary: item.summary ?? null,
     url: item.links?.original ?? item.links?.aihot ?? "https://aihot.news",
     siteUrl: item.links?.aihot ?? null,
@@ -50,11 +53,13 @@ function toSelectedItem(item: AihotItem): FeedItem {
 }
 
 function toHotItem(item: AihotHotItem): FeedItem {
+  const origin = item.source?.name ?? "AIHOT";
   return {
     id: item.id,
     source: "aihot",
     title: item.title,
-    origin: item.source?.name ?? "AIHOT",
+    origin: displaySourceName(origin),
+    site: cleanSourceName(origin).site,
     summary: null,
     url: item.links?.original ?? item.links?.aihot ?? "https://aihot.news",
     siteUrl: item.links?.story ?? item.links?.aihot ?? null,
@@ -73,7 +78,7 @@ export async function fetchAihot(
     ? `https://aihot.news/api/v1/items?mode=selected&window=24h&limit=${limit}`
     : "https://aihot.news/api/v1/hot-topics";
 
-  const cached = await readCache<FeedItem[]>(channel);
+  const cached = await readFeedCache(channel);
   const fresh = cached !== null && Date.now() - cached.fetchedAt < TTL_MS;
   if (fresh && !force) {
     return { items: cached.data, fetchedAt: cached.fetchedAt, state: "cached" };

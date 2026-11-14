@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type { ArticleResult, ArticleVersion } from "../shared/article";
 import { prunePageCache, readCache, writeCache } from "./cache";
 import { isMostlyEnglish } from "./text/lang";
-import { extractFromPage } from "./text/markdown";
+import { cleanBoilerplate, extractFromPage } from "./text/markdown";
 import { readTranslation } from "./translate-store";
 
 const BODY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -52,10 +52,11 @@ export async function fetchPageArticle(input: {
 
   let body: string | null = null;
   if (cached && Date.now() - cached.fetchedAt < BODY_TTL_MS && cached.data.markdown) {
-    body = cached.data.markdown;
+    body = cleanBoilerplate(cached.data.markdown, input.origin);
   } else {
     body = await loadPage(input.url);
     if (body) {
+      body = cleanBoilerplate(body, input.origin);
       await writeCache(key, { data: { markdown: body }, etag: null, fetchedAt: Date.now() });
       // 写之后顺手清一次（内部限流，一小时最多一次）
       void prunePageCache();

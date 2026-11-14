@@ -1,10 +1,11 @@
 import type { FeedItem, FeedState } from "../shared/feed";
 import type { Subscription } from "../shared/subs";
-import { readCache, writeCache } from "./cache";
+import { readFeedCache, writeCache } from "./cache";
 import { parseFeed } from "./feeds/parse";
 import { describeFetchError, rateLimitMessage } from "./errors";
 import { getText } from "./sources/http";
 import { readSubs } from "./subs";
+import { cleanSourceName } from "./text/source-name";
 
 const REFRESH_MS = 15 * 60 * 1000;
 const MAX_ITEMS = 200;
@@ -24,7 +25,7 @@ type SourceState = {
 
 async function refreshOne(sub: Subscription, force: boolean): Promise<SourceState> {
   const key = `mine-${sub.id}`;
-  const cached = await readCache<FeedItem[]>(key);
+  const cached = await readFeedCache(key);
   const fresh = cached !== null && Date.now() - cached.fetchedAt < REFRESH_MS;
   if (fresh && !force) {
     return { items: cached.data, fetchedAt: cached.fetchedAt, state: "cached" };
@@ -43,11 +44,13 @@ async function refreshOne(sub: Subscription, force: boolean): Promise<SourceStat
     if (response.kind !== "ok") throw new Error("源返回异常");
 
     const parsed = parseFeed(response.text);
+    const { site, label } = cleanSourceName(sub.title);
     const items: FeedItem[] = parsed.items.slice(0, MAX_ITEMS).map((entry) => ({
       id: entry.id || entry.url,
       source: "rss",
       title: entry.title,
-      origin: sub.title,
+      origin: site ?? label,
+      site,
       summary: entry.summary,
       url: entry.url || sub.url,
       siteUrl: null,

@@ -18,6 +18,11 @@ export const feedItemSchema = z.object({
   title: z.string(),
   /** 来源名，例如「TechCrunch：AI（RSS）」 */
   origin: z.string(),
+  /**
+   * 纯站点名，例如「TechCrunch」。
+   * 旧缓存与旧的收藏快照没有这个字段，按缺省处理。
+   */
+  site: z.string().nullable().optional(),
   summary: z.string().nullable(),
   /** 原文链接 */
   url: z.string(),

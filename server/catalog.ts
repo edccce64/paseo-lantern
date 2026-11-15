@@ -1,4 +1,21 @@
 import { BLOG_CATALOG, type CatalogEntry } from "./data/blog-catalog";
+import { CURATED_SOURCES } from "./data/curated-sources";
+
+/**
+ * 推荐源目录 = 人工挑选的精选源 + 独立博客目录。
+ * 精选源排在前面，打开「发现」第一屏就能看到。按地址去重，保留先出现的条目。
+ */
+const ALL_SOURCES: CatalogEntry[] = (() => {
+  const seen = new Set<string>();
+  const merged: CatalogEntry[] = [];
+  for (const entry of [...CURATED_SOURCES, ...BLOG_CATALOG]) {
+    const key = entry.url.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(entry);
+  }
+  return merged;
+})();
 
 /**
  * 按名字、RSS 地址、标签过滤内置目录。
@@ -7,10 +24,10 @@ import { BLOG_CATALOG, type CatalogEntry } from "./data/blog-catalog";
  */
 export function suggestSources(query: string, limit: number): CatalogEntry[] {
   const needle = query.trim().toLocaleLowerCase();
-  if (!needle) return BLOG_CATALOG.slice(0, limit);
+  if (!needle) return ALL_SOURCES.slice(0, limit);
 
   const scored: Array<{ entry: CatalogEntry; score: number }> = [];
-  for (const entry of BLOG_CATALOG) {
+  for (const entry of ALL_SOURCES) {
     const name = entry.name.toLocaleLowerCase();
     let score = 0;
     if (name.startsWith(needle)) score = 3;

@@ -74,7 +74,8 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
   const needle = debounced.trim();
   const suggestions = useQuery({
     queryKey: ["lantern-suggest", needle],
-    queryFn: () => suggest({ query: needle, limit: 8 }),
+    // 空查询是浏览模式，多给几条；搜索时只给最接近的 8 条
+    queryFn: () => suggest({ query: needle, limit: needle.length === 0 ? 24 : 8 }),
     // 目录在空查询时也返回推荐源，打开「发现」就有内容
     enabled: open && tab === "discover",
     staleTime: 5 * 60 * 1000,

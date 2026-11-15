@@ -17,6 +17,7 @@ import { FONT, LABEL, SECTION, isDark, palette } from "./style";
 import { WORDMARK_CREAM, WORDMARK_INK, WORDMARK_RATIO } from "./wordmark";
 import { SubsPanel } from "./subs-panel";
 import { LanternSheet } from "./sheet";
+import { type SwipeDirection, useHorizontalSwipe } from "./swipe";
 
 /** 频道来自服务端，收藏是本地伪频道：直接用 settings 里的快照渲染 */
 type ViewChannel = ChannelId | "star";
@@ -28,6 +29,9 @@ const CHANNELS: Array<{ id: ViewChannel; title: string; full: string }> = [
   { id: "mine", title: "订阅", full: "我的订阅" },
   { id: "star", title: "收藏", full: "收藏" },
 ];
+
+/** 左右滑动只在「我的订阅」之前的三个频道之间走 */
+const SWIPE_CHANNELS: ViewChannel[] = ["aihot-selected", "aihot-hot", "qiaomu"];
 
 function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
@@ -104,6 +108,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   }
 
   function open(item: FeedItem): void {
+    // 滑动切频道时宿主会多送一次点击，别把它当成开文
+    if (channelSwipe.justSwiped()) return;
     setOpenItem(item);
     const key = itemKey(item);
     if (state.read.includes(key)) return;
@@ -124,6 +130,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   });
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // 手机：列表区左滑看下一个频道，右滑回上一个
+  const channelSwipe = useHorizontalSwipe({
+    enabled: layout.compact,
+    onSwipe: (direction: SwipeDirection) => {
+      const index = SWIPE_CHANNELS.indexOf(channel);
+      if (index < 0) return;
+      const target = SWIPE_CHANNELS[direction === "left" ? index + 1 : index - 1];
+      if (target) setChannel(target);
+    },
+  });
 
   const colors = useMemo(() => palette(theme), [theme]);
   const wordmark = isDark(theme) ? WORDMARK_CREAM : WORDMARK_INK;
@@ -211,6 +228,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       },
 
       // 列表
+      swipeArea: { flex: 1 },
       row: {
         paddingHorizontal: horizontal,
         paddingVertical: 14,
@@ -494,7 +512,10 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               key={entry.id}
               accessibilityRole="button"
               accessibilityLabel={`频道：${entry.full}`}
-              onPress={() => setChannel(entry.id)}
+              onPress={() => {
+                if (channelSwipe.justSwiped()) return;
+                setChannel(entry.id);
+              }}
               style={styles.channelCell}
             >
               <Text style={active ? styles.channelTextActive : styles.channelText}>
@@ -560,54 +581,56 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           </Pressable>
         </View>
       ) : (
-        <FlatList
-          data={data}
-          keyExtractor={(item) => `${item.source}-${item.id}`}
-          renderItem={({ item, index }) => renderRow(item, index === 0)}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          refreshing={isStarChannel ? false : refreshing}
-          onRefresh={isStarChannel ? undefined : () => void refresh()}
-          contentContainerStyle={
-            data.length === 0 ? { flexGrow: 1 } : channel === "mine" ? { paddingBottom: 92 } : undefined
-          }
-          ListFooterComponent={
-            rawData.length > 0 ? (
-              <View style={styles.footer}>
-                <Text style={styles.footerText} numberOfLines={1}>
-                  {statusText}
-                </Text>
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            <View style={styles.state}>
-              {rawData.length > 0 ? (
-                <>
-                  <Text style={styles.stateText}>没有匹配的内容</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="清空搜索"
-                    onPress={() => setKeyword("")}
-                    style={styles.emptyClear}
-                  >
-                    <Text style={styles.emptyClearText}>清空搜索</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Icon
-                    name={isStarChannel ? "Star" : channel === "mine" ? "Plus" : "Inbox"}
-                    size={26}
-                    color={colors.muted}
-                  />
-                  <Text style={styles.stateText}>
-                    {isStarChannel ? "还没有收藏" : channel === "mine" ? "还没有订阅" : "暂无内容"}
+        <View style={styles.swipeArea} {...channelSwipe.panHandlers}>
+          <FlatList
+            data={data}
+            keyExtractor={(item) => `${item.source}-${item.id}`}
+            renderItem={({ item, index }) => renderRow(item, index === 0)}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            refreshing={isStarChannel ? false : refreshing}
+            onRefresh={isStarChannel ? undefined : () => void refresh()}
+            contentContainerStyle={
+              data.length === 0 ? { flexGrow: 1 } : channel === "mine" ? { paddingBottom: 92 } : undefined
+            }
+            ListFooterComponent={
+              rawData.length > 0 ? (
+                <View style={styles.footer}>
+                  <Text style={styles.footerText} numberOfLines={1}>
+                    {statusText}
                   </Text>
-                </>
-              )}
-            </View>
-          }
-        />
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={
+              <View style={styles.state}>
+                {rawData.length > 0 ? (
+                  <>
+                    <Text style={styles.stateText}>没有匹配的内容</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="清空搜索"
+                      onPress={() => setKeyword("")}
+                      style={styles.emptyClear}
+                    >
+                      <Text style={styles.emptyClearText}>清空搜索</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Icon
+                      name={isStarChannel ? "Star" : channel === "mine" ? "Plus" : "Inbox"}
+                      size={26}
+                      color={colors.muted}
+                    />
+                    <Text style={styles.stateText}>
+                      {isStarChannel ? "还没有收藏" : channel === "mine" ? "还没有订阅" : "暂无内容"}
+                    </Text>
+                  </>
+                )}
+              </View>
+            }
+          />
+        </View>
       )}
 
       {channel === "mine" ? (

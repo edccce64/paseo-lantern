@@ -12,6 +12,7 @@ import { translateRequestRpc, translateStatusRpc } from "../shared/translate";
 import { buildCompanionPrompt } from "./companion";
 import { FONT, LABEL, type Palette, palette } from "./style";
 import { LanternSheet } from "./sheet";
+import { useHorizontalSwipe } from "./swipe";
 
 const VERSION_LABELS: Array<{ id: ArticleVersion; title: string }> = [
   { id: "original", title: "原文" },
@@ -400,6 +401,16 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const colors = useMemo(() => palette(theme), [theme]);
   const compact = layout.compact;
   const scrollRef = useRef<ScrollView>(null);
+
+  // 手机：读完后左右滑一下即回列表，不用去够左上角的返回
+  const backSwipe = useHorizontalSwipe({ enabled: compact, onSwipe: () => onBack() });
+  // 滑动结束的那一下会被宿主当成点击，底部按钮要跳过
+  function guardPress(action: () => void): () => void {
+    return () => {
+      if (backSwipe.justSwiped()) return;
+      action();
+    };
+  }
 
   // 换文章或换版本时回到顶部
   useEffect(() => {
@@ -923,7 +934,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const hasBody = blocks.length > 0;
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.screen} {...backSwipe.panHandlers}>
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
@@ -1031,7 +1042,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="AI 陪读"
-          onPress={() => void openCompanion()}
+          onPress={guardPress(() => void openCompanion())}
           style={styles.companion}
         >
           <Text style={styles.companionText}>AI 陪读</Text>
@@ -1039,7 +1050,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={starred ? "取消收藏" : "收藏"}
-          onPress={toggleStar}
+          onPress={guardPress(toggleStar)}
           style={styles.iconButton}
         >
           <Text style={starred ? styles.starGlyphOn : styles.starGlyph}>
@@ -1049,9 +1060,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="打开原文"
-          onPress={() => {
+          onPress={guardPress(() => {
             void openExternalUrl(item.url).catch(() => toast.error("打不开这个链接"));
-          }}
+          })}
           style={styles.iconButton}
         >
           <Icon name="ArrowUpRight" size={18} color={colors.ink} />

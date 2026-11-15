@@ -1,8 +1,8 @@
 # HANDOFF · paseo-lantern（提灯）
 
-最后更新：2026-11-14 22:15
-当前版本：B 版「日报」视觉定稿（手写体报头、报纸式列表与正文、主题化弹层）+ 来源名清洗 + 正文样板行清洗 + 弹层定位修复。
-待验证：深色模式、键盘避让。桌面与手机（用户实机）均已确认可用（2026-11-14 22:30）。
+最后更新：2026-11-15
+当前版本：B 版「日报」视觉定稿 + 来源名清洗 + 正文样板行清洗 + 弹层定位修复 + 手机左右滑动。
+待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。桌面与手机（用户实机）均已确认可用（2026-11-14 22:30）。
 
 ---
 
@@ -64,6 +64,8 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 主题化弹层：订阅管理 / AI 陪读 / 取消收藏 全部纸色 | 已完成（桌面已验证 2026-11-14） |
 | 订阅管理常驻右下角橙色齿轮 | 已完成（桌面已验证 2026-11-14） |
 | 正文页：居中标题、署名紧跟其下、时间英文格式 | 已完成（桌面已验证 2026-11-14） |
+| 手机左右滑动切频道：精选 / 热点 / 乔木 三频道之间滑 | 已完成（桌面鼠标拖拽已验证 2026-11-15，真机未验证） |
+| 手机正文页左右滑动返回列表 | 已完成（桌面鼠标拖拽已验证 2026-11-15，真机未验证） |
 
 ## 4. 还没做
 
@@ -86,6 +88,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | `client/screen.tsx` | 727 | 报头字标、频道横排、搜索、报纸式列表、桌面右栅「今日速览」、订阅管理浮动按钮、收藏确认 |
 | `client/article.tsx` | 1101 | 正文视图：自建 Markdown 解析与渲染、居中标题与署名、版本切换、译文进度、AI 陪读、收藏 |
 | `client/subs-panel.tsx` | 548 | 订阅管理弹层：已订阅 / 发现两个 tab、RSS 添加、推荐源搜索、OPML 导入导出 |
+| `client/swipe.ts` | 70 | 横向滑动判定 `useHorizontalSwipe`：位移判定、防误触 `justSwiped` |
 | `client/sheet.tsx` | 179 | 主题化弹层 `LanternSheet`，替掉宿主 `Modal`（宿主标题栏改不了颜色） |
 | `client/style.ts` | 96 | 设计令牌：`palette(theme)`、`FONT`、`LABEL`、`SECTION`、`isDark` |
 | `client/wordmark.ts` | 15 | 手写体字标 `The Lantern` 的内嵌 PNG（base64，墨色 / 奶油色两套） |
@@ -587,6 +590,33 @@ RN 插件运行时加载不了字体文件（没有 expo-font），所以不能�
 
 测试用临时改动 `client/screen.tsx` 的 `compact: true` 已还原，工作区只剩 `client/sheet.tsx`、`client/article.tsx`、`client/subs-panel.tsx` 三个文件。
 
+## 11.24 手机左右滑动（2026-11-15）
+
+需求（用户原话）：「首页 AIHOT 精选、乔木频道到个人订阅之前可以通过左滑右滑切换」，「阅读完文章左滑退出」。
+
+做法：
+
+- 新增 `client/swipe.ts` 的 `useHorizontalSwipe`。用 `PanResponder`，只在 `|dx| > 24` 且 `|dx| > |dy| * 2` 时才接管，竖向滚动仍归 ScrollView（已验证）。
+- 松手时位移 ≥ 72 或 `|vx| > 0.4` 才算一次滑动。
+- 列表页：只给 `aihot-selected` / `aihot-hot` / `qiaomu` 三个频道做映射（`SWIPE_CHANNELS`）。左滑看下一个，右滑回上一个，两端夹住不越界。
+- 正文页：左右任一方向滑动都回列表。用户说的是「左滑退出」，但手机上的习惯是右滑返回，两个方向都收，免得猜错。
+- 全部只在 `layout.compact`（手机布局）下挂载，桌面不受影响。
+
+关键坑（已验证）：宿主会把滑动的最后一下同时当成一次点击。滑动后列表第一条会被点开（夹住边界、频道没变时最明显）。
+
+- 改法：`useHorizontalSwipe` 额外返回 `justSwiped()`，滑动接管与松手时打时间戳，500 ms 内返回 true。
+- `screen.tsx` 的 `open()` 与频道按钮、`article.tsx` 底部三个按钮都先问 `justSwiped()`。
+
+验证（2026-11-15，桌面窗口改成 430×900 触发 `compact`，用 `mouse_event` 拖拽）：
+
+- 已验证：精选左滑到热点，再左滑到乔木，第三次左滑仍停乔木（夹住）。
+- 已验证：精选右滑不动，且不再误开文章（防误触生效）。
+- 已验证：正文页左滑、右滑都回到列表，频道保持在原频道。
+- 已验证：点一下条目照常开文（500 ms 防误触不影响点击）。
+- 已验证：滚轮竖向滚动正常，宽窗口（1280）回到两栏布局不变。
+- 未验证：真机 iPhone 上的手感（阈值 24 / 72 是按桌面鼠标定的，手指可能需要调）。
+- 未验证：正文里横向表格与滑动的争夺。表格向右拖是否会被当成退出，尚未实测。
+
 ## 12. 下次开工建议
 
 下一步优先级（按用户实际反馈排）：
@@ -603,6 +633,12 @@ RN 插件运行时加载不了字体文件（没有 expo-font），所以不能�
 ## 13. 提交记录
 
 ```
+b26530a feat: add hand-picked recommended sources to the discover tab
+0cb3e76 docs: add README and MIT license for open-source release
+b9b1913 chore: ignore local env files and drop machine paths from docs
+a68c50c docs: record the mobile check for the sheet fix
+7d7d9a6 fix: anchor the sheet to the screen and pin the primary actions
+4846bf5 docs: bring the handoff up to date with the gazette redesign
 e42b57b refine: centre the article header and enlarge the title
 e7d811b feat: replace the host modal with a themed sheet
 31d8d3a refine: bind the title and byline into one block
@@ -642,7 +678,7 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 3fa23ab feat: P0 skeleton with sidebar entry and ping rpc
 ```
 
-仓库只在本机，没配远端。
+远端：`https://github.com/edccce64/paseo-lantern`（origin）。
 
 ---
 
@@ -678,3 +714,5 @@ dafa4e7 feat: P3 personal subscriptions with OPML import and export
 28. 订阅频道右下角橙色齿轮常驻，滚到底部时最后一条不被遮挡。（桌面已验证，手机未验证）
 29. 手机键盘弹出时，订阅弹层里的搜索与 RSS 输入框不被遮。（未验证）
 30. 深色模式下字标自动换成奶油色版本。（代码已备，未验证）
+31. 首页在精选 / 热点 / 乔木之间左右滑能切频道，滑到头不再继续。（桌面已验证，手机未验证）
+32. 正文页滑一下就回列表，且滑动不会顺带点开文章或底部按钮。（桌面已验证，手机未验证）

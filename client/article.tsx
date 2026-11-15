@@ -402,8 +402,12 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const compact = layout.compact;
   const scrollRef = useRef<ScrollView>(null);
 
-  // 手机：读完后左右滑一下即回列表，不用去够左上角的返回
-  const backSwipe = useHorizontalSwipe({ enabled: compact, onSwipe: () => onBack() });
+  // 手机：只接管左滑回列表。右滑是宿主的拉出侧边栏，不能抢。
+  const backSwipe = useHorizontalSwipe({
+    enabled: compact,
+    directions: ["left"],
+    onSwipe: () => onBack(),
+  });
   // 滑动结束的那一下会被宿主当成点击，底部按钮要跳过
   function guardPress(action: () => void): () => void {
     return () => {
@@ -797,9 +801,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
           <Text
             key={key}
             style={{ color: colors.accent, textDecorationLine: "underline" }}
-            onPress={() => {
+            onPress={guardPress(() => {
               void openExternalUrl(token.href as string).catch(() => toast.error("打不开这个链接"));
-            }}
+            })}
           >
             {token.text}
           </Text>

@@ -1,7 +1,7 @@
 # HANDOFF · paseo-lantern（提灯）
 
 最后更新：2026-11-16
-当前版本：白底主题（B 版「日报」视觉定稿去掉纸色底）+ 来源名清洗 + 正文样板行清洗 + 弹层定位修复 + 手机左右滑动。
+当前版本：白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
 待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。桌面与手机（用户实机）均已确认可用（2026-11-14 22:30）。
 
 ---
@@ -641,6 +641,43 @@ RN 插件运行时加载不了字体文件（没有 expo-font），所以不能�
 - 已验证：`npx tsc --noEmit` 退出码 0。
 - 已验证：桌面截图 —— 列表页、正文页、订阅管理弹层都是白底；字标仍为墨色手写体；橙色下划线、未读方块、齿轮按钮在位；齿轮图标在橙底上是深色，清楚。
 - 未验证：深色模式（没有切主题截图）、手机端。
+
+## 11.26 读 X 长文：FxTwitter + 收藏并入订阅（2026-11-16）
+
+用户要求两件事：正文能直接读 X 上的长文章；收藏频道并入订阅频道。
+
+### 一、X 链接的正文走 FxTwitter
+
+x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三方匿名 API，不用登录、不用 key，能拿到长推文全文与 X Article 正文。
+
+- 新增 `server/sources/fxtwitter.ts`：`isXStatusUrl()`、`parseXStatusId()`、`fetchXPost()`。端点 `https://api.fxtwitter.com/status/<id>`，无 handle 也能用。
+- 新增 `server/text/draftjs.ts`：把 X Article 的 draft-js 结构（`content.blocks` + `entityMap`）转 Markdown。支持段落、多级标题、引用、无序与有序列表、代码块、行内加粗与斜体、行内代码、链接、图片。
+  - `entityMap` 每项是 `{ key, value: { type, data } }`，取 `value` 才是实体。
+  - `MEDIA` 实体的 `data.mediaItems[0].mediaId` 要与 `media_entities[].media_id` 配对，两边前 16 位一致（19 位数字超过 JS 安全整数）。
+  - `MARKDOWN` 实体的 `data.markdown` 本身就是带 ``` 围栏的代码块，原样输出。
+- `server/page-article.ts` 的 `loadPage()`：URL 是 x.com 链接时先走 FxTwitter，抓不到再按原逻辑。
+- 缓存照旧写进 `page-<sha1>.json`，有效期 7 天。
+
+实测（2026-11-16）：
+
+| 样本 | 结果 |
+| --- | --- |
+| 日文 X Article（Chrome 扩展 Muse 那篇） | 4836 字，5 个一级标题，2 条列表，2 张图，6 个代码块 |
+| 长推文 note tweet（karpathy HackerTube） | 1306 字全文，标 `looksEnglish` |
+| 普通网页（阮一峰周刊） | 10910 字，不受影响 |
+| 连续 12 次请求 FxTwitter | 全部 200，没有限流 |
+
+插件内实测：AIHOT 精选里的「通义千问发布 Qwen4 Max」（`x.com/Alibaba_Qwen/status/...`）原来抓不到正文，现在显示推文全文。
+
+### 二、收藏并入订阅频道
+
+- 频道标签从 5 个减到 4 个：精选 / 热点 / 乔木 / 订阅。收藏不再是标签。
+- 订阅频道列表顶部加一条入口行：星形图标 + 「收藏」+ 条数 + 右箭头。点它进入收藏列表。
+- 收藏列表顶部是返回行：左箭头 + 「收藏」+ 条数，点它回到订阅列表。
+- 收藏视图里不显示右下角齿轮、不显示刷新按钮，桌面右栏速览显示「收藏」。
+- 长按取消收藏只在收藏视图里生效，行为不变。
+
+验证：桌面截图确认入口行、收藏列表、返回、右栏速览、FxTwitter 正文。
 
 ## 12. 下次开工建议
 

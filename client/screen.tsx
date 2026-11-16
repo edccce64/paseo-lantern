@@ -18,15 +18,14 @@ import { WORDMARK_CREAM, WORDMARK_INK, WORDMARK_RATIO } from "./wordmark";
 import { SubsPanel } from "./subs-panel";
 import { LanternSheet } from "./sheet";
 
-/** 频道来自服务端，收藏是本地伪频道：直接用 settings 里的快照渲染 */
-type ViewChannel = ChannelId | "star";
+/** 频道来自服务端。收藏是本地伪频道：直接用 settings 里的快照渲染，不占一个标签 */
+type ViewChannel = ChannelId;
 
 const CHANNELS: Array<{ id: ViewChannel; title: string; full: string }> = [
   { id: "aihot-selected", title: "精选", full: "AIHOT 精选" },
   { id: "aihot-hot", title: "热点", full: "AIHOT 热点" },
   { id: "qiaomu", title: "乔木", full: "乔木精选" },
   { id: "mine", title: "订阅", full: "我的订阅" },
-  { id: "star", title: "收藏", full: "收藏" },
 ];
 
 function pad(value: number): string {
@@ -88,6 +87,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const list = useRpc(listRpc);
   const settings = useSettings(lanternStateSettings);
   const [channel, setChannel] = useState<ViewChannel>("aihot-selected");
+  /** 订阅频道里看收藏：收藏不占标签，从订阅列表进，从收藏列表回 */
+  const [showStar, setShowStar] = useState(false);
   const [openItem, setOpenItem] = useState<FeedItem | null>(null);
   const [subsOpen, setSubsOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
@@ -118,7 +119,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const query = useQuery({
     queryKey: ["lantern", channel],
     queryFn: () => list({ channel: channel as ChannelId, limit: 60 }),
-    enabled: channel !== "star",
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -338,6 +338,19 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         backgroundColor: p.accent,
       },
 
+      // 订阅频道里的收藏入口与收藏视图的返回行
+      starBar: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 8,
+        paddingHorizontal: horizontal,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: p.rule,
+      },
+      starBarTitle: { fontFamily: FONT.sans, fontSize: 14, color: p.ink, flex: 1 },
+      starBarCount: { fontFamily: FONT.mono, fontSize: 11, color: p.muted },
+
       // 桌面右栏：今日速览
       brief: {
         paddingHorizontal: 30,
@@ -377,8 +390,10 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     };
   }, [colors, layout.compact]);
 
+  const isStarView = channel === "mine" && showStar;
+
   async function refresh() {
-    if (channel === "star") return;
+    if (isStarView) return;
     setRefreshing(true);
     try {
       const fresh = await list({ channel, limit: 60, force: true });
@@ -390,10 +405,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     }
   }
 
-  const isStarChannel = channel === "star";
   const rawData = useMemo(
-    () => (isStarChannel ? state.star : (query.data?.items ?? [])),
-    [isStarChannel, state.star, query.data?.items],
+    () => (isStarView ? state.star : (query.data?.items ?? [])),
+    [isStarView, state.star, query.data?.items],
   );
 
   // 搜索只过滤当前频道，不动已读与收藏
@@ -409,9 +423,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     });
   }, [rawData, keyword]);
 
-  const isPending = !isStarChannel && query.isPending;
-  const isError = !isStarChannel && query.isError;
-  const statusText = isStarChannel
+  const isPending = !isStarView && query.isPending;
+  const isError = !isStarView && query.isError;
+  const statusText = isStarView
     ? `${state.star.length} 条收藏`
     : query.data
       ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
@@ -446,7 +460,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         accessibilityRole="button"
         accessibilityLabel={item.title}
         onPress={() => open(item)}
-        onLongPress={isStarChannel ? () => setUnstarTarget(item) : undefined}
+        onLongPress={isStarView ? () => setUnstarTarget(item) : undefined}
         style={styles.row}
       >
         <View style={styles.markCol}>{unread ? <View style={styles.unreadMark} /> : null}</View>
@@ -494,7 +508,10 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               key={entry.id}
               accessibilityRole="button"
               accessibilityLabel={`频道：${entry.full}`}
-              onPress={() => setChannel(entry.id)}
+              onPress={() => {
+                setChannel(entry.id);
+                setShowStar(false);
+              }}
               style={styles.channelCell}
             >
               <Text style={active ? styles.channelTextActive : styles.channelText}>
@@ -513,6 +530,33 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         ))}
       </View>
       <View style={styles.channelSpacer} />
+
+      {channel === "mine" ? (
+        isStarView ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="返回订阅列表"
+            onPress={() => setShowStar(false)}
+            style={styles.starBar}
+          >
+            <Icon name="ChevronLeft" size={16} color={colors.ink} />
+            <Text style={styles.starBarTitle}>收藏</Text>
+            <Text style={styles.starBarCount}>{state.star.length} 条</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`收藏，${state.star.length} 条`}
+            onPress={() => setShowStar(true)}
+            style={styles.starBar}
+          >
+            <Icon name="Star" size={16} color={colors.accent} />
+            <Text style={styles.starBarTitle}>收藏</Text>
+            <Text style={styles.starBarCount}>{state.star.length} 条</Text>
+            <Icon name="ChevronRight" size={16} color={colors.muted} />
+          </Pressable>
+        )
+      ) : null}
 
       {rawData.length > 0 ? (
         <View style={styles.searchWrap}>
@@ -565,8 +609,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           keyExtractor={(item) => `${item.source}-${item.id}`}
           renderItem={({ item, index }) => renderRow(item, index === 0)}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          refreshing={isStarChannel ? false : refreshing}
-          onRefresh={isStarChannel ? undefined : () => void refresh()}
+          refreshing={isStarView ? false : refreshing}
+          onRefresh={isStarView ? undefined : () => void refresh()}
           contentContainerStyle={
             data.length === 0 ? { flexGrow: 1 } : channel === "mine" ? { paddingBottom: 92 } : undefined
           }
@@ -596,12 +640,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               ) : (
                 <>
                   <Icon
-                    name={isStarChannel ? "Star" : channel === "mine" ? "Plus" : "Inbox"}
+                    name={isStarView ? "Star" : channel === "mine" ? "Plus" : "Inbox"}
                     size={26}
                     color={colors.muted}
                   />
                   <Text style={styles.stateText}>
-                    {isStarChannel ? "还没有收藏" : channel === "mine" ? "还没有订阅" : "暂无内容"}
+                    {isStarView ? "还没有收藏" : channel === "mine" ? "还没有订阅" : "暂无内容"}
                   </Text>
                 </>
               )}
@@ -610,7 +654,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         />
       )}
 
-      {channel === "mine" ? (
+      {channel === "mine" && !isStarView ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="订阅管理"
@@ -678,7 +722,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
             <View style={styles.brief}>
               <Text style={styles.briefTitle}>今日速览</Text>
               <Text style={styles.briefDate}>今天 {formatTodayShort(today)}</Text>
-              <Text style={styles.briefChannel}>{channelMeta?.full ?? ""}</Text>
+              <Text style={styles.briefChannel}>{isStarView ? "收藏" : channelMeta?.full ?? ""}</Text>
               <Text style={styles.briefCount}>
                 <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
               </Text>
@@ -693,7 +737,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                 </>
               ) : null}
               <View style={styles.briefActions}>
-                {isStarChannel ? null : (
+                {isStarView ? null : (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="刷新"
@@ -704,7 +748,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                     <Text style={styles.briefActionText}>刷新</Text>
                   </Pressable>
                 )}
-                {channel === "mine" ? (
+                {channel === "mine" && !isStarView ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="订阅管理"

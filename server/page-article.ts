@@ -3,6 +3,7 @@ import type { ArticleResult, ArticleVersion } from "../shared/article";
 import { prunePageCache, readCache, writeCache } from "./cache";
 import { isMostlyEnglish } from "./text/lang";
 import { cleanBoilerplate, extractFromPage } from "./text/markdown";
+import { fetchXPost, isXStatusUrl } from "./sources/fxtwitter";
 import { readTranslation } from "./translate-store";
 
 const BODY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -17,6 +18,13 @@ function keyFor(url: string): string {
 }
 
 async function loadPage(url: string): Promise<string | null> {
+  // x.com 的页面要登录，直接抓只会拿到登录墙。走 FxTwitter 匿名 API，
+  // 能拿到长推文全文与 X Article 的完整正文。
+  if (isXStatusUrl(url)) {
+    const post = await fetchXPost(url);
+    return post?.markdown ?? null;
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PAGE_TIMEOUT_MS);
   try {

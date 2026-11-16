@@ -26,6 +26,7 @@ const CHANNELS: Array<{ id: ViewChannel; title: string; full: string }> = [
   { id: "aihot-hot", title: "热点", full: "AIHOT 热点" },
   { id: "qiaomu", title: "乔木", full: "乔木精选" },
   { id: "mine", title: "订阅", full: "我的订阅" },
+  { id: "xfeed", title: "X", full: "XFeed AI" },
 ];
 
 function pad(value: number): string {
@@ -455,6 +456,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
   function renderRow(item: FeedItem, isLead: boolean) {
     const unread = !state.read.includes(itemKey(item));
+    // XFeed 频道每条都带一句中文摘要，都用正文标题的大小
+    const flat = channel === "xfeed";
+    const bigTitle = isLead && !flat;
     return (
       <Pressable
         accessibilityRole="button"
@@ -467,14 +471,14 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         <View style={styles.rowBody}>
           <Text
             style={[
-              isLead ? styles.leadTitle : styles.itemTitle,
-              unread ? null : isLead ? styles.leadTitleRead : styles.itemTitleRead,
+              bigTitle ? styles.leadTitle : styles.itemTitle,
+              unread ? null : bigTitle ? styles.leadTitleRead : styles.itemTitleRead,
             ]}
-            numberOfLines={isLead ? 3 : 2}
+            numberOfLines={bigTitle ? 3 : 2}
           >
             {item.title}
           </Text>
-          {isLead && item.summary ? (
+          {(bigTitle || flat) && item.summary ? (
             <Text style={styles.leadSummary} numberOfLines={2}>
               {item.summary}
             </Text>

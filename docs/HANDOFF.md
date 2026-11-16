@@ -45,6 +45,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | --- | --- |
 | 侧边栏进入「提灯」全屏页 | 已完成 |
 | 四个频道：AIHOT 精选 / AIHOT 热点 / 乔木精选 / 我的订阅 | 已完成 |
+| 第五个频道 XFeed AI：XFeed 的中文标题与摘要，正文走 FxTwitter | 已完成（已验证 2026-11-16） |
 | 列表点开正文，Markdown 渲染 | 已完成 |
 | AIHOT 正文：从原文页抽取（两个频道都是） | 已完成 |
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
@@ -678,6 +679,30 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 长按取消收藏只在收藏视图里生效，行为不变。
 
 验证：桌面截图确认入口行、收藏列表、返回、右栏速览、FxTwitter 正文。
+
+## 11.27 XFeed 频道（2026-11-16）
+
+新增第五个频道「XFeed AI」（标签写「X」）。
+
+数据源：XFeed（xfeed.ai）没有公开 API，但站点自己的前端读公开静态 JSON：
+
+- `https://xfeed.ai/data.json`：992 条，含 XFeed 写的中文标题 `displayTitle`、中文摘要 `displaySummary`、作者、原帖链接、类型、点赞数。
+- 官方说推文数据每 3 小时更新，所以缓存 TTL 取 30 分钟。
+
+做法：
+
+- 新增 `server/sources/xfeed.ts`：拉 JSON，映射成 `FeedItem`（`source: "xfeed"`，标题用 `displayTitle`，摘要用 `displaySummary`，来源写作者名，链接是 x.com 原帖），按时间倒序。缓存键 `xfeed`，存全部条目，返回时截取 limit 条。
+- `shared/feed.ts`：`CHANNELS` 加 `xfeed`，`channelIdSchema` 加 `xfeed`，`feedItemSchema` 的 `source` 枚举加 `xfeed`。
+- `server/feed.ts`：加分支走 `fetchXfeed`。
+- `client/screen.tsx`：标签行加「X」；XFeed 频道每条都显示摘要，标题统一用正文大小（不用头条的 26px）。
+- `client/article.tsx`：正文页右上角频道名加「XFeed AI」；英文正文也给「译文」chip，翻译状态轮询的 `enabled` 条件要带上 `isXfeed`（第一版漏了，界面一直停在「翻译中」）。
+
+验证：
+
+- 已验证：服务端拉取 60 条，中文标题、中文摘要、作者、时间、类型都对。
+- 已验证：桌面截图确认 5 个标签一行放下、每条带摘要、右栏速览显示「XFeed AI 60 条内容」。
+- 已验证：点开英文条目，正文是 X 原文全文；点「译文」几秒后自动切到中文译文。
+- 未验证：手机端；X Article 里的图片与代码块在插件里的渲染；FxTwitter 与 XFeed 的长期稳定性。
 
 ## 12. 下次开工建议
 

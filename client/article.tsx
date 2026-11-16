@@ -37,6 +37,7 @@ function formatWhen(iso: string): string {
 function channelName(item: FeedItem): string {
   if (item.source === "qiaomu") return "乔木精选";
   if (item.source === "rss") return "我的订阅";
+  if (item.source === "xfeed") return "XFeed AI";
   if (item.badge && item.badge.includes("家信源")) return "AIHOT 热点";
   return "AIHOT 精选";
 }
@@ -349,6 +350,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";
   const isAihot = item.source === "aihot";
+  const isXfeed = item.source === "xfeed";
 
   const query = useQuery({
     queryKey: ["lantern-article", item.source, item.id, version],
@@ -373,7 +375,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const statusQuery = useQuery({
     queryKey: ["lantern-translate-status", item.id],
     queryFn: () => translateStatus({ id: item.id }),
-    enabled: (isRss || isAihot) && translating,
+    enabled: (isRss || isAihot || isXfeed) && translating,
     refetchInterval: translating ? 2000 : false,
     retry: 1,
   });
@@ -765,7 +767,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
   /** AIHOT 和「我的订阅」的英文正文才给译文 chip；乔木自己有译文 */
   const showTranslate =
-    (isRss || isAihot) && ((result?.looksEnglish ?? false) || versions.translation);
+    (isRss || isAihot || isXfeed) && ((result?.looksEnglish ?? false) || versions.translation);
   const chips: Array<{ id: ArticleVersion; title: string }> = isQiaomu
     ? VERSION_LABELS
     : showTranslate

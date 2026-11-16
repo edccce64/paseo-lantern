@@ -269,7 +269,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         borderRadius: 2,
         backgroundColor: p.accent,
       },
-      retryText: { fontFamily: FONT.sans, fontSize: 15, fontWeight: "700" as const, color: p.paper },
+      retryText: { fontFamily: FONT.sans, fontSize: 15, fontWeight: "700" as const, color: p.onAccent },
 
       emptyClear: {
         marginTop: 6,
@@ -305,7 +305,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         borderColor: p.accent,
         backgroundColor: p.accent,
       },
-      dialogConfirmText: { fontFamily: FONT.sans, fontSize: 14, letterSpacing: 1, fontWeight: "600" as const, color: p.paper },
+      dialogConfirmText: { fontFamily: FONT.sans, fontSize: 14, letterSpacing: 1, fontWeight: "600" as const, color: p.onAccent },
 
       // 页脚
       footer: {
@@ -617,7 +617,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           onPress={() => setSubsOpen(true)}
           style={styles.fab}
         >
-          <Icon name="Settings" size={22} color={colors.paper} />
+          <Icon name="Settings" size={22} color={colors.onAccent} />
         </Pressable>
       ) : null}
 

@@ -248,7 +248,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
         borderRadius: 2,
         backgroundColor: p.accent,
       },
-      solidText: { fontFamily: FONT.sans, color: p.paper, fontSize: 13 },
+      solidText: { fontFamily: FONT.sans, color: p.onAccent, fontSize: 13 },
       foldRow: {
         flexDirection: "row" as const,
         alignItems: "center" as const,

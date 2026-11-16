@@ -2,8 +2,9 @@ import { Platform } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 
 /**
- * B 版「日报」设计令牌。
- * 纸色在宿主深色模式下要反相，否则夜里会刺眼。
+ * 设计令牌。
+ * 底色跟随宿主主题：浅色是白色，深色是宿主的深色面。
+ * 橙色点缀与字标是插件自己的风格，不随主题走。
  */
 
 export type Palette = {
@@ -21,6 +22,8 @@ export type Palette = {
   rule: string;
   /** 强调色 */
   accent: string;
+  /** 橙色实心按钮上的文字色 */
+  onAccent: string;
 };
 
 function luminance(hex: string): number {
@@ -38,25 +41,18 @@ export function isDark(theme: PluginTheme): boolean {
 }
 
 export function palette(theme: PluginTheme): Palette {
-  if (isDark(theme)) {
-    return {
-      paper: "#15140F",
-      panel: "#1E1C15",
-      ink: "#EDE6D6",
-      inkSoft: "#C6BDA9",
-      muted: "#8E8676",
-      rule: "#38342A",
-      accent: "#E2793C",
-    };
-  }
+  const dark = isDark(theme);
   return {
-    paper: "#F4EFE4",
-    panel: "#EFE8D8",
-    ink: "#1B1917",
-    inkSoft: "#4A443A",
-    muted: "#8A7F6C",
-    rule: "#C9BFA9",
-    accent: "#B4501E",
+    // 底色与卡片面都取宿主主题，浅色下就是白色
+    paper: theme.colors.surface0,
+    panel: theme.colors.surface1,
+    ink: theme.colors.foreground,
+    inkSoft: theme.colors.foreground,
+    muted: theme.colors.foregroundMuted,
+    rule: theme.colors.border,
+    // 橙色点缀与字标是插件自己的风格，不随主题走
+    accent: dark ? "#E2793C" : "#B4501E",
+    onAccent: dark ? "#1B1917" : "#FFFFFF",
   };
 }
 

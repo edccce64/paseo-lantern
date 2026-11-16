@@ -649,7 +649,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         fontSize: 14,
         fontWeight: "600" as const,
         letterSpacing: 1,
-        color: colors.paper,
+        color: colors.onAccent,
       },
     };
   }, [colors, compact]);

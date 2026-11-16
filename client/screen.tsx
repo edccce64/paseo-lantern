@@ -325,11 +325,16 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         paddingLeft: 8,
       },
       footerEntryText: { fontFamily: FONT.sans, fontSize: 12, color: p.ink },
-      // 常驻右下角：随时可点，不随列表滚动跑掉
-      fab: {
+      // 右下角：收藏与订阅设置两个按钮横排
+      fabStack: {
         position: "absolute" as const,
         right: 18,
         bottom: 22,
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 12,
+      },
+      fab: {
         width: 56,
         height: 56,
         borderRadius: 28,
@@ -337,19 +342,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         justifyContent: "center" as const,
         backgroundColor: p.accent,
       },
-
-      // 订阅频道里的收藏入口与收藏视图的返回行
-      starBar: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 8,
-        paddingHorizontal: horizontal,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: p.rule,
+      // 当前就在收藏里时，收藏按钮改成描边样式
+      fabQuiet: {
+        backgroundColor: p.panel,
+        borderWidth: 1,
+        borderColor: p.accent,
       },
-      starBarTitle: { fontFamily: FONT.sans, fontSize: 14, color: p.ink, flex: 1 },
-      starBarCount: { fontFamily: FONT.mono, fontSize: 11, color: p.muted },
 
       // 桌面右栏：今日速览
       brief: {
@@ -531,33 +529,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       </View>
       <View style={styles.channelSpacer} />
 
-      {channel === "mine" ? (
-        isStarView ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="返回订阅列表"
-            onPress={() => setShowStar(false)}
-            style={styles.starBar}
-          >
-            <Icon name="ChevronLeft" size={16} color={colors.ink} />
-            <Text style={styles.starBarTitle}>收藏</Text>
-            <Text style={styles.starBarCount}>{state.star.length} 条</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`收藏，${state.star.length} 条`}
-            onPress={() => setShowStar(true)}
-            style={styles.starBar}
-          >
-            <Icon name="Star" size={16} color={colors.accent} />
-            <Text style={styles.starBarTitle}>收藏</Text>
-            <Text style={styles.starBarCount}>{state.star.length} 条</Text>
-            <Icon name="ChevronRight" size={16} color={colors.muted} />
-          </Pressable>
-        )
-      ) : null}
-
       {rawData.length > 0 ? (
         <View style={styles.searchWrap}>
           <View style={styles.searchRow}>
@@ -612,7 +583,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           refreshing={isStarView ? false : refreshing}
           onRefresh={isStarView ? undefined : () => void refresh()}
           contentContainerStyle={
-            data.length === 0 ? { flexGrow: 1 } : channel === "mine" ? { paddingBottom: 92 } : undefined
+            data.length === 0 ? { flexGrow: 1 } : channel === "mine" ? { paddingBottom: 96 } : undefined
           }
           ListFooterComponent={
             rawData.length > 0 ? (
@@ -654,15 +625,29 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         />
       )}
 
-      {channel === "mine" && !isStarView ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="订阅管理"
-          onPress={() => setSubsOpen(true)}
-          style={styles.fab}
-        >
-          <Icon name="Settings" size={22} color={colors.onAccent} />
-        </Pressable>
+      {channel === "mine" ? (
+        <View style={styles.fabStack}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`收藏，${state.star.length} 条`}
+            onPress={() => setShowStar(!isStarView)}
+            style={[styles.fab, isStarView ? styles.fabQuiet : null]}
+          >
+            <Icon
+              name="Star"
+              size={22}
+              color={isStarView ? colors.accent : colors.onAccent}
+            />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="订阅管理"
+            onPress={() => setSubsOpen(true)}
+            style={styles.fab}
+          >
+            <Icon name="Settings" size={22} color={colors.onAccent} />
+          </Pressable>
+        </View>
       ) : null}
 
       <SubsPanel

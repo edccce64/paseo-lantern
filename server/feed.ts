@@ -4,7 +4,6 @@ import { listRpc } from "../shared/feed";
 import { listMine } from "./mine";
 import { fetchAihot } from "./sources/aihot";
 import { fetchQiaomu } from "./sources/qiaomu";
-import { fetchXfeed } from "./sources/xfeed";
 
 export async function listFeed({
   channel,
@@ -17,9 +16,7 @@ export async function listFeed({
       ? await listMine(size, force === true)
       : channel === "qiaomu"
         ? await fetchQiaomu(size, force === true)
-        : channel === "xfeed"
-          ? await fetchXfeed(size, force === true)
-          : await fetchAihot(channel, size, force === true);
+        : await fetchAihot(channel, size, force === true);
 
   return {
     items: result.items,

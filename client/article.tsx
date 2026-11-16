@@ -350,6 +350,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const isQiaomu = item.source === "qiaomu";
   const isRss = item.source === "rss";
   const isAihot = item.source === "aihot";
+  // XFeed 频道已删，但旧收藏里还有那些条目，仍能读正文与译文
   const isXfeed = item.source === "xfeed";
 
   const query = useQuery({

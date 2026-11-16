@@ -45,7 +45,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | --- | --- |
 | 侧边栏进入「提灯」全屏页 | 已完成 |
 | 四个频道：AIHOT 精选 / AIHOT 热点 / 乔木精选 / 我的订阅 | 已完成 |
-| 第五个频道 XFeed AI：XFeed 的中文标题与摘要，正文走 FxTwitter | 已完成（已验证 2026-11-16） |
+| 第五个频道 XFeed AI | 已删除（2026-11-16，阅读体验不好） |
 | 列表点开正文，Markdown 渲染 | 已完成 |
 | AIHOT 正文：从原文页抽取（两个频道都是） | 已完成 |
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
@@ -680,7 +680,9 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 
 验证：桌面截图确认入口行、收藏列表、返回、右栏速览、FxTwitter 正文。
 
-## 11.27 XFeed 频道（2026-11-16）
+## 11.27 XFeed 频道（2026-11-16，同日删除）
+
+曾新增第五个频道「XFeed AI」，当天按用户要求删除。下面保留当时的做法，方便以后重建。
 
 新增第五个频道「XFeed AI」（标签写「X」）。
 
@@ -703,6 +705,17 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 已验证：桌面截图确认 5 个标签一行放下、每条带摘要、右栏速览显示「XFeed AI 60 条内容」。
 - 已验证：点开英文条目，正文是 X 原文全文；点「译文」几秒后自动切到中文译文。
 - 未验证：手机端；X Article 里的图片与代码块在插件里的渲染；FxTwitter 与 XFeed 的长期稳定性。
+
+### 当天删除
+
+用户试完说阅读体验不好，当天删掉：
+
+- 删掉 `server/sources/xfeed.ts`，`server/feed.ts` 去掉 xfeed 分支，`shared/feed.ts` 的 `CHANNELS` 与 `channelIdSchema` 去掉 xfeed。
+- `client/screen.tsx` 去掉「X」标签与 XFeed 专用的摘要显示。
+- `feedItemSchema` 的 `source` 枚举保留 `xfeed`，只为兼容旧收藏快照；旧收藏里的 XFeed 条目仍能读正文（走 FxTwitter）并能翻中文译文。
+- 缓存文件 `xfeed.json` 已删。
+
+保留的部分：`server/sources/fxtwitter.ts` 与 `server/text/draftjs.ts`。任何订阅源里的 x.com 链接仍走这条链路读全文。
 
 ## 12. 下次开工建议
 

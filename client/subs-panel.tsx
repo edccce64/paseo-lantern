@@ -1,10 +1,10 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
-import { copyText, TextInput, useToast } from "@getpaseo/plugin/client/ui";
+import { copyText, Icon, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ElementRef } from "react";
-import { Pressable, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import {
   subsAddRpc,
   subsExportRpc,
@@ -21,6 +21,11 @@ type Props = {
   layout: PluginScreenProps["layout"];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * sheet：手机与桌面的弹层形态（默认，行为不变）。
+   * pane：桌面右栏内联展示，不开弹层。
+   */
+  variant?: "sheet" | "pane";
 };
 
 type TabId = "subs" | "discover";
@@ -30,7 +35,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: "discover", label: "发现" },
 ];
 
-export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
+export function SubsPanel({ theme, layout, open, onOpenChange, variant = "sheet" }: Props) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const listSubs = useRpc(subsListRpc);
@@ -278,6 +283,42 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
       },
       subscribeText: { fontFamily: FONT.sans, color: p.accent, fontSize: 12 },
       subscribedText: { fontFamily: FONT.mono, color: p.muted, fontSize: 11, letterSpacing: 1 },
+
+      // 桌面右栏内联形态（variant="pane"）
+      pane: { flex: 1, backgroundColor: p.paper },
+      paneHead: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        justifyContent: "space-between" as const,
+        paddingLeft: 30,
+        paddingRight: 18,
+        paddingTop: 24,
+        paddingBottom: 12,
+      },
+      paneTitle: {
+        fontFamily: FONT.serif,
+        fontSize: 20,
+        fontWeight: "600" as const,
+        letterSpacing: 2,
+        color: p.ink,
+      },
+      paneClose: { width: 40, height: 40, alignItems: "center" as const, justifyContent: "center" as const },
+      paneScroll: { flex: 1 },
+      // 右栏很宽，内容封顶 560 居中，否则一行拉太长
+      paneContent: {
+        width: "100%" as const,
+        maxWidth: 620,
+        alignSelf: "center" as const,
+        paddingBottom: 24,
+      },
+      paneFooter: {
+        width: "100%" as const,
+        maxWidth: 620,
+        alignSelf: "center" as const,
+        paddingHorizontal: 20,
+        paddingTop: 8,
+        paddingBottom: 20,
+      },
     };
   }, [theme, layout.compact, narrow]);
 
@@ -513,15 +554,8 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
     );
   }
 
-  return (
-    <LanternSheet
-      theme={theme}
-      layout={layout}
-      open={open}
-      title="订阅管理"
-      onClose={() => onOpenChange(false)}
-      footer={tab === "subs" ? opmlFooter : null}
-    >
+  const body = (
+    <>
       <View style={styles.tabBar}>
         {TABS.map((entry) => {
           const active = tab === entry.id;
@@ -546,8 +580,47 @@ export function SubsPanel({ theme, layout, open, onOpenChange }: Props) {
           );
         })}
       </View>
-
       {tab === "subs" ? renderSubscribed() : renderDiscover()}
+    </>
+  );
+
+  // 桌面右栏：不开弹层，直接在栏内展示
+  if (variant === "pane") {
+    return (
+      <View style={styles.pane}>
+        <View style={styles.paneHead}>
+          <Text style={styles.paneTitle}>订阅管理</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="关闭订阅管理"
+            onPress={() => onOpenChange(false)}
+            style={styles.paneClose}
+          >
+            <Icon name="X" size={18} color={styles.p.muted} />
+          </Pressable>
+        </View>
+        <ScrollView
+          style={styles.paneScroll}
+          contentContainerStyle={styles.paneContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {body}
+        </ScrollView>
+        {tab === "subs" ? <View style={styles.paneFooter}>{opmlFooter}</View> : null}
+      </View>
+    );
+  }
+
+  return (
+    <LanternSheet
+      theme={theme}
+      layout={layout}
+      open={open}
+      title="订阅管理"
+      onClose={() => onOpenChange(false)}
+      footer={tab === "subs" ? opmlFooter : null}
+    >
+      {body}
     </LanternSheet>
   );
 }

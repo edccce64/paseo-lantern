@@ -101,6 +101,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
   function open(item: FeedItem): void {
     setOpenItem(item);
+    // 桌面：右栏正在看订阅管理时，选文章就切回正文
+    setSubsOpen(false);
     const key = itemKey(item);
     if (state.read.includes(key)) return;
     saveState({ read: [...state.read, key].slice(-MAX_READ_ENTRIES) });
@@ -386,16 +388,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       },
       // 刷新只留图标：无文字、无边框
       briefIcon: { width: 40, height: 40, alignItems: "center" as const, justifyContent: "center" as const },
-      briefAction: {
-        minHeight: 40,
-        paddingHorizontal: 14,
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-        borderWidth: 1,
-        borderColor: p.ink,
-      },
-      briefActionText: { fontFamily: FONT.serif, fontSize: 13, color: p.ink },
     };
   }, [colors, layout.compact]);
 
@@ -519,6 +511,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               onPress={() => {
                 setChannel(entry.id);
                 setShowStar(false);
+                setSubsOpen(false);
               }}
               style={styles.channelCell}
             >
@@ -640,7 +633,10 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`收藏，${state.star.length} 条`}
-            onPress={() => setShowStar(!isStarView)}
+            onPress={() => {
+              setShowStar(!isStarView);
+              setSubsOpen(false);
+            }}
             style={[styles.fab, isStarView ? styles.fabQuiet : null]}
           >
             <Icon
@@ -652,7 +648,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="订阅管理"
-            onPress={() => setSubsOpen(true)}
+            onPress={() => setSubsOpen(!subsOpen)}
             style={styles.fab}
           >
             <Icon name="Settings" size={22} color={colors.onAccent} />
@@ -663,7 +659,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       <SubsPanel
         theme={theme}
         layout={layout}
-        open={subsOpen}
+        // 桌面在右栏内联展示，不开弹层；手机继续用弹层
+        open={subsOpen && layout.compact}
         onOpenChange={setSubsOpen}
       />
 
@@ -713,53 +710,46 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       <View style={[styles.screen, { flexDirection: "row" }]}>
         <View style={styles.wideList}>{listPane}</View>
         <View style={styles.wideBody}>
-          {articlePane ?? (
-            <View style={styles.brief}>
-              <View style={styles.briefBlock}>
-                <Text style={styles.briefTitle}>今日速览</Text>
-                <View style={styles.briefRule} />
-                <View style={styles.briefTight}>
-                  <Text style={styles.briefChannel}>{isStarView ? "收藏" : channelMeta?.full ?? ""}</Text>
-                  <Text style={styles.briefCount}>
-                    <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
-                  </Text>
+          {subsOpen ? (
+            <SubsPanel theme={theme} layout={layout} open onOpenChange={setSubsOpen} variant="pane" />
+          ) : (
+            articlePane ?? (
+              <View style={styles.brief}>
+                <View style={styles.briefBlock}>
+                  <Text style={styles.briefTitle}>今日速览</Text>
+                  <View style={styles.briefRule} />
+                  <View style={styles.briefTight}>
+                    <Text style={styles.briefChannel}>{isStarView ? "收藏" : channelMeta?.full ?? ""}</Text>
+                    <Text style={styles.briefCount}>
+                      <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
+                    </Text>
+                  </View>
+                  <View style={styles.briefDivider} />
+                  {latest ? (
+                    <>
+                      <Text style={styles.briefLatest} numberOfLines={2}>
+                        {latest.title}
+                      </Text>
+                      <Text style={styles.briefMeta}>
+                        {sourceName(latest)} · {formatTime(latest.publishedAt)}
+                      </Text>
+                    </>
+                  ) : null}
                 </View>
-                <View style={styles.briefDivider} />
-                {latest ? (
-                  <>
-                    <Text style={styles.briefLatest} numberOfLines={2}>
-                      {latest.title}
-                    </Text>
-                    <Text style={styles.briefMeta}>
-                      {sourceName(latest)} · {formatTime(latest.publishedAt)}
-                    </Text>
-                  </>
-                ) : null}
+                <View style={styles.briefActions}>
+                  {isStarView ? null : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="刷新"
+                      onPress={() => void refresh()}
+                      style={styles.briefIcon}
+                    >
+                      <Icon name="RotateCw" size={17} color={refreshing ? colors.accent : colors.ink} />
+                    </Pressable>
+                  )}
+                </View>
               </View>
-              <View style={styles.briefActions}>
-                {isStarView ? null : (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="刷新"
-                    onPress={() => void refresh()}
-                    style={styles.briefIcon}
-                  >
-                    <Icon name="RotateCw" size={17} color={refreshing ? colors.accent : colors.ink} />
-                  </Pressable>
-                )}
-                {channel === "mine" && !isStarView ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="订阅管理"
-                    onPress={() => setSubsOpen(true)}
-                    style={styles.briefAction}
-                  >
-                    <Icon name="Settings" size={15} color={colors.ink} />
-                    <Text style={styles.briefActionText}>订阅管理</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
+            )
           )}
         </View>
       </View>

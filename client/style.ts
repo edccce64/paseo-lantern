@@ -57,23 +57,27 @@ export function palette(theme: PluginTheme): Palette {
 }
 
 export const FONT = {
-  /** 衬线：报名、标题、正文 */
+  /**
+   * 标题与正文。桌面（网页）换成鸿蒙 HarmonyOS Sans SC；
+   * 手机没有这个字体，ios / android 分支保持原样。
+   * 令牌名仍叫 serif：它只是「正文那一套」，接入时不必改调用处。
+   */
   serif: Platform.select({
     ios: "Georgia",
     android: "serif",
-    default: "Georgia, 'Songti SC', SimSun, serif",
+    default: "'HarmonyOS Sans SC', system-ui, 'Microsoft YaHei', sans-serif",
   }),
-  /** 无衬线：说明文字、按钮 */
+  /** 无衬线：说明文字、按钮。桌面同样换成鸿蒙，大小字一套字体。 */
   sans: Platform.select({
     ios: "System",
     android: "sans-serif",
-    default: "system-ui, -apple-system, 'Microsoft YaHei', sans-serif",
+    default: "'HarmonyOS Sans SC', system-ui, 'Microsoft YaHei', sans-serif",
   }),
-  /** 等宽：卷号、标签、小字 */
+  /** 等宽小字：卷号、标签、署名行。桌面换鸿蒙后不再等宽，字距靠 letterSpacing 补。 */
   mono: Platform.select({
     ios: "Menlo",
     android: "monospace",
-    default: "ui-monospace, Consolas, monospace",
+    default: "'HarmonyOS Sans SC', ui-monospace, Consolas, monospace",
   }),
 } as const;
 

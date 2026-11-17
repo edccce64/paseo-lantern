@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: FONT.serif,
     fontSize: 19,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   closeButton: {
     width: 44,

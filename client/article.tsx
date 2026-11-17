@@ -475,7 +475,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         fontFamily: FONT.serif,
         fontSize: compact ? 30 : 38,
         lineHeight: compact ? 39 : 49,
-        fontWeight: "700" as const,
+        fontWeight: "600" as const,
         color: colors.ink,
         textAlign: "center" as const,
       },
@@ -508,7 +508,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       },
       heading: {
         fontFamily: FONT.serif,
-        fontWeight: "700" as const,
+        fontWeight: "600" as const,
         color: colors.ink,
         marginTop: 18,
       },
@@ -558,7 +558,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         lineHeight: 19,
         color: colors.inkSoft,
       },
-      tableHeaderText: { fontWeight: "700" as const, color: colors.ink },
+      tableHeaderText: { fontWeight: "600" as const, color: colors.ink },
       note: {
         fontFamily: FONT.sans,
         color: colors.muted,

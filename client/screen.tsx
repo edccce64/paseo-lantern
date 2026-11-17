@@ -229,7 +229,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       leadTitle: {
         fontFamily: FONT.serif,
         fontSize: 26,
-        fontWeight: "700" as const,
+        fontWeight: "600" as const,
         lineHeight: 36.4,
         color: p.ink,
       },
@@ -244,7 +244,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       itemTitle: {
         fontFamily: FONT.serif,
         fontSize: 17,
-        fontWeight: "700" as const,
+        fontWeight: "600" as const,
         lineHeight: 24.7,
         color: p.ink,
       },
@@ -281,7 +281,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
       // 取消收藏确认
       dialog: { gap: 12 },
-      dialogTitle: { fontFamily: FONT.serif, fontSize: 17, fontWeight: "700" as const, color: p.ink },
+      dialogTitle: { fontFamily: FONT.serif, fontSize: 17, fontWeight: "600" as const, color: p.ink },
       dialogText: { fontFamily: FONT.sans, fontSize: 13.5, lineHeight: 20, color: p.inkSoft },
       dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const, marginTop: 4 },
       dialogCancel: {
@@ -349,32 +349,47 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         borderColor: p.accent,
       },
 
-      // 桌面右栏：今日速览
+      // 桌面右栏：今日速览。B 版：全部水平居中，内容块在栏内垂直居中
       brief: {
+        flex: 1,
         paddingHorizontal: 30,
         paddingVertical: 28,
         gap: 14,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
       },
+      // 居中块：宽度封顶，窄栏里不拉成一条
+      briefBlock: { width: "100%" as const, maxWidth: 420, alignItems: "center" as const, gap: 14 },
+      // 日期 / 频道 / 条数贴在一起
+      briefTight: { alignItems: "center" as const, gap: 6 },
+      briefRule: { width: 40, height: 2, backgroundColor: p.accent },
+      briefDivider: { width: "100%" as const, height: 1, backgroundColor: p.rule },
       briefTitle: {
         fontFamily: FONT.serif,
         fontSize: 24,
-        fontWeight: "700" as const,
+        fontWeight: "600" as const,
         letterSpacing: 3,
         color: p.ink,
+        textAlign: "center" as const,
       },
-      briefDate: { fontFamily: FONT.serif, fontSize: 15, color: p.accent },
-      briefChannel: { fontFamily: FONT.serif, fontSize: 18, color: p.ink },
-      briefCount: { fontFamily: FONT.serif, fontSize: 14, color: p.muted },
-      briefCountNum: { fontFamily: FONT.serif, fontSize: 30, fontWeight: "700" as const, color: p.accent },
+      briefDate: { fontFamily: FONT.serif, fontSize: 15, color: p.accent, textAlign: "center" as const },
+      briefChannel: { fontFamily: FONT.serif, fontSize: 18, color: p.ink, textAlign: "center" as const },
+      briefCount: { fontFamily: FONT.serif, fontSize: 14, color: p.muted, textAlign: "center" as const },
+      briefCountNum: { fontFamily: FONT.serif, fontSize: 30, fontWeight: "600" as const, color: p.accent },
       briefLatest: {
         fontFamily: FONT.serif,
         fontSize: 17,
         lineHeight: 25,
         color: p.ink,
-        marginTop: 4,
+        textAlign: "center" as const,
       },
-      briefMeta: { fontFamily: FONT.serif, fontSize: 13, color: p.muted },
-      briefActions: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, marginTop: 6 },
+      briefMeta: { fontFamily: FONT.serif, fontSize: 13, color: p.muted, textAlign: "center" as const },
+      briefActions: {
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        gap: 10,
+      },
       briefAction: {
         minHeight: 40,
         paddingHorizontal: 14,
@@ -705,22 +720,28 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         <View style={styles.wideBody}>
           {articlePane ?? (
             <View style={styles.brief}>
-              <Text style={styles.briefTitle}>今日速览</Text>
-              <Text style={styles.briefDate}>今天 {formatTodayShort(today)}</Text>
-              <Text style={styles.briefChannel}>{isStarView ? "收藏" : channelMeta?.full ?? ""}</Text>
-              <Text style={styles.briefCount}>
-                <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
-              </Text>
-              {latest ? (
-                <>
-                  <Text style={styles.briefLatest} numberOfLines={2}>
-                    {latest.title}
+              <View style={styles.briefBlock}>
+                <Text style={styles.briefTitle}>今日速览</Text>
+                <View style={styles.briefRule} />
+                <View style={styles.briefTight}>
+                  <Text style={styles.briefDate}>今天 {formatTodayShort(today)}</Text>
+                  <Text style={styles.briefChannel}>{isStarView ? "收藏" : channelMeta?.full ?? ""}</Text>
+                  <Text style={styles.briefCount}>
+                    <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
                   </Text>
-                  <Text style={styles.briefMeta}>
-                    {sourceName(latest)} · {formatTime(latest.publishedAt)}
-                  </Text>
-                </>
-              ) : null}
+                </View>
+                <View style={styles.briefDivider} />
+                {latest ? (
+                  <>
+                    <Text style={styles.briefLatest} numberOfLines={2}>
+                      {latest.title}
+                    </Text>
+                    <Text style={styles.briefMeta}>
+                      {sourceName(latest)} · {formatTime(latest.publishedAt)}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
               <View style={styles.briefActions}>
                 {isStarView ? null : (
                   <Pressable

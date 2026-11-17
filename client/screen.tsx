@@ -49,11 +49,6 @@ function formatTime(iso: string): string {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
-/** 11月14日 */
-function formatTodayShort(now: Date): string {
-  return `${now.getMonth() + 1}月${now.getDate()}日`;
-}
-
 function stateLabel(state: FeedState): string {
   switch (state) {
     case "live":
@@ -372,7 +367,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         color: p.ink,
         textAlign: "center" as const,
       },
-      briefDate: { fontFamily: FONT.serif, fontSize: 15, color: p.accent, textAlign: "center" as const },
       briefChannel: { fontFamily: FONT.serif, fontSize: 18, color: p.ink, textAlign: "center" as const },
       briefCount: { fontFamily: FONT.serif, fontSize: 14, color: p.muted, textAlign: "center" as const },
       briefCountNum: { fontFamily: FONT.serif, fontSize: 30, fontWeight: "600" as const, color: p.accent },
@@ -390,6 +384,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         justifyContent: "center" as const,
         gap: 10,
       },
+      // 刷新只留图标：无文字、无边框
+      briefIcon: { width: 40, height: 40, alignItems: "center" as const, justifyContent: "center" as const },
       briefAction: {
         minHeight: 40,
         paddingHorizontal: 14,
@@ -445,7 +441,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       : "";
 
   const channelMeta = CHANNELS.find((entry) => entry.id === channel);
-  const today = useMemo(() => new Date(), []);
 
   function renderByline(item: FeedItem) {
     const source = sourceName(item);
@@ -724,7 +719,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                 <Text style={styles.briefTitle}>今日速览</Text>
                 <View style={styles.briefRule} />
                 <View style={styles.briefTight}>
-                  <Text style={styles.briefDate}>今天 {formatTodayShort(today)}</Text>
                   <Text style={styles.briefChannel}>{isStarView ? "收藏" : channelMeta?.full ?? ""}</Text>
                   <Text style={styles.briefCount}>
                     <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
@@ -748,10 +742,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                     accessibilityRole="button"
                     accessibilityLabel="刷新"
                     onPress={() => void refresh()}
-                    style={styles.briefAction}
+                    style={styles.briefIcon}
                   >
-                    <Icon name="RotateCw" size={15} color={colors.ink} />
-                    <Text style={styles.briefActionText}>刷新</Text>
+                    <Icon name="RotateCw" size={17} color={refreshing ? colors.accent : colors.ink} />
                   </Pressable>
                 )}
                 {channel === "mine" && !isStarView ? (

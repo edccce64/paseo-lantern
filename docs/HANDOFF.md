@@ -1,7 +1,7 @@
 # HANDOFF · paseo-lantern（提灯）
 
-最后更新：2026-11-16
-当前版本：白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
+最后更新：2026-11-18
+当前版本：桌面换鸿蒙字体 + 右栏「今日速览」改居中 B 版；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
 待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。桌面与手机（用户实机）均已确认可用（2026-11-14 22:30）。
 
 ---
@@ -57,6 +57,8 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 收藏：正文页底部按钮 + 顶部「收藏」频道 | 已完成（已验证 2026-11-13，落盘 2026-11-14） |
 | 桌面工作区分屏面板：和 agent 并排看同一份界面 | 已完成（已验证） |
 | 桌面宽屏两栏：左列列表 380，右侧读正文，选文章不替换整页 | 已完成（已验证 2026-11-14） |
+| 桌面字体：鸿蒙 HarmonyOS Sans SC（标题 / 正文 / 标签统一） | 已完成（已验证 2026-11-18，真机界面） |
+| 桌面右栏「今日速览」居中 B 版：水平居中 + 垂直居中 + 橙线 + 细线 | 已完成（已验证 2026-11-18，真机界面） |
 | 后台定时刷新个人订阅：每 15 分钟一轮 | 已完成（已验证 2026-11-14） |
 | 缓存总量上限 100 MB，超出按最旧淘汰 | 已完成（已验证 2026-11-14） |
 | 报头手写字标 `The Lantern`（内嵌图，随主题变色） | 已完成（桌面已验证 2026-11-14） |
@@ -718,6 +720,49 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 缓存文件 `xfeed.json` 已删。
 
 保留的部分：`server/sources/fxtwitter.ts` 与 `server/text/draftjs.ts`。任何订阅源里的 x.com 链接仍走这条链路读全文。
+
+## 11.28 桌面换鸿蒙字体 + 右栏改居中（2026-11-18）
+
+用户要求：桌面端文字改鸿蒙字体；报头手写字标不动；右栏「今日速览」改居中展示。手机端不动。
+
+设计稿：`~/.paseo/projects/paseo-插件开发/work/lantern-type/index.html`（顶栏切字体，底部是字体样张；另有 B 版右栏稿）。
+
+### 一、字体（`client/style.ts`）
+
+`FONT.serif` / `FONT.sans` / `FONT.mono` 三个令牌只改 `Platform.select` 的 `default`（网页桌面）分支，改成 `'HarmonyOS Sans SC', system-ui, 'Microsoft YaHei', sans-serif`；`ios` / `android` 分支原样保留，所以手机没有任何变化。
+
+令牌名不变，仍是 `serif` / `sans` / `mono`：桌面下三套都指向鸿蒙，调用处不用改。
+
+### 二、字重降一档（700 → 600）
+
+涉及的样式（不改内联加粗与 12px 小标签）：
+
+- `client/screen.tsx`：`leadTitle`（26）、`itemTitle`（17）、`briefTitle`（24）、`briefCountNum`（30）、`dialogTitle`（17）。
+- `client/article.tsx`：`title`（30 / 38）、`heading`（正文小标题）、`tableHeaderText`。
+- `client/sheet.tsx`：弹层标题 `title`（19）。
+
+保留 700 的：`channelTextActive`（12px 频道标签）、`retryText`、Markdown 行内加粗、实心按钮文字（本来就是 600）。
+
+### 三、右栏「今日速览」B 版（`client/screen.tsx`）
+
+结构：`brief` 容器居中且 `flex: 1`（垂直居中）→ 内层 `briefBlock`（宽 100%，maxWidth 420，居中）→ 标题 / 橙色短线 `/` 日期+频道+条数（`briefTight`）`/` 1px 细线 `/` 最新一条标题与署名；主操作 `briefActions` 在块外，同样居中。
+
+新增样式：`briefBlock`、`briefTight`、`briefRule`（40×2 橙色）、`briefDivider`（1px 边框色）。所有文字节点加了 `textAlign: "center"`。
+
+### 四、验证
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：客户端禁用 API 扫描 0 命中（`document.` / `window.` / `localStorage` / `navigator.` / `className=` / `onClick=` / 原生 HTML 标签）。
+- 已验证：`paseo plugin reload paseo-lantern` 后状态 `running`。
+- 已验证（真机界面截图）：右栏是 B 版 —— 标题居中、橙色短线、日期/频道/条数一组、1px 细线、最新标题两行居中、`刷新` 按钮居中。点开文章后右侧读正文也正常。
+- 已验证（字形测量）：桌面 renderer 的 `--device-scale-factor=1.25`；截图 OCR 得标题首行墨迹宽 392 设备像素 ≈ 310 CSS px。用 canvas 在 Chromium 里量同一串：鸿蒙 315.3 CSS、微软雅黑 331.1 CSS。实测 310 接近鸿蒙，确认实际渲染的是鸿蒙而不是兑底字体。
+- 未验证：手机端（`ios` / `android` 分支没改，但没上真机看）。
+- 未验证：深色模式下的新字体与新右栏。
+
+### 五、隶到的坑
+
+- 本机 Chrome headless 用 `--screenshot` 写文件会报「拒绝访问 (0x5)」，写系统盘也一样。改用 ego-browser 的 `page.screenshot({ path })`。
+- Paseo 桌面 renderer 的 `--device-scale-factor=1.25`：窗口截图是设备像素，算 CSS 尺寸要除 1.25，否则会误判换行与字号。
 
 ## 12. 下次开工建议
 

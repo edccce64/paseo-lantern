@@ -426,7 +426,8 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
   const styles = useMemo(() => {
     const horizontal = compact ? 16 : 28;
-    const paraSize = 16.5;
+    // 桌面右栏宽，正文不需要那么大；手机上保持原尺寸
+    const paraSize = compact ? 16.5 : 15.5;
     return {
       screen: { flex: 1, backgroundColor: colors.paper },
       topBar: {
@@ -473,8 +474,9 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       },
       title: {
         fontFamily: FONT.serif,
-        fontSize: compact ? 30 : 38,
-        lineHeight: compact ? 39 : 49,
+        // 桌面降到 28：跟左侧字标的观感相当，不再四行占满一屏
+        fontSize: compact ? 30 : 28,
+        lineHeight: compact ? 39 : 37,
         fontWeight: "600" as const,
         color: colors.ink,
         textAlign: "center" as const,
@@ -844,7 +846,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     blocks.forEach((block, index) => {
       const key = `b${index}`;
       if (block.kind === "heading") {
-        const size = block.level <= 2 ? 20 : 17;
+        const size = compact ? (block.level <= 2 ? 20 : 17) : block.level <= 2 ? 18 : 16;
         out.push(
           <Text key={key} style={[styles.heading, { fontSize: size, lineHeight: Math.round(size * 1.4) }]}>
             {renderInline(block.text, key)}

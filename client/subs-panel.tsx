@@ -1,6 +1,6 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
-import { copyText, Icon, TextInput, useToast } from "@getpaseo/plugin/client/ui";
+import { copyText, TextInput, useToast } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ElementRef } from "react";
@@ -287,11 +287,8 @@ export function SubsPanel({ theme, layout, open, onOpenChange, variant = "sheet"
       // 桌面右栏内联形态（variant="pane"）
       pane: { flex: 1, backgroundColor: p.paper },
       paneHead: {
-        flexDirection: "row" as const,
         alignItems: "center" as const,
-        justifyContent: "space-between" as const,
-        paddingLeft: 30,
-        paddingRight: 18,
+        paddingHorizontal: 30,
         paddingTop: 24,
         paddingBottom: 12,
       },
@@ -301,21 +298,22 @@ export function SubsPanel({ theme, layout, open, onOpenChange, variant = "sheet"
         fontWeight: "600" as const,
         letterSpacing: 2,
         color: p.ink,
+        textAlign: "center" as const,
       },
-      paneClose: { width: 40, height: 40, alignItems: "center" as const, justifyContent: "center" as const },
       paneScroll: { flex: 1 },
-      // 右栏很宽，内容封顶 560 居中，否则一行拉太长
+      // 右栏很宽：内容封顶 620 居中，左右各留 30 的空隙
       paneContent: {
         width: "100%" as const,
-        maxWidth: 620,
+        maxWidth: 680,
         alignSelf: "center" as const,
+        paddingHorizontal: 30,
         paddingBottom: 24,
       },
       paneFooter: {
         width: "100%" as const,
-        maxWidth: 620,
+        maxWidth: 680,
         alignSelf: "center" as const,
-        paddingHorizontal: 20,
+        paddingHorizontal: 30,
         paddingTop: 8,
         paddingBottom: 20,
       },
@@ -590,14 +588,6 @@ export function SubsPanel({ theme, layout, open, onOpenChange, variant = "sheet"
       <View style={styles.pane}>
         <View style={styles.paneHead}>
           <Text style={styles.paneTitle}>订阅管理</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="关闭订阅管理"
-            onPress={() => onOpenChange(false)}
-            style={styles.paneClose}
-          >
-            <Icon name="X" size={18} color={styles.p.muted} />
-          </Pressable>
         </View>
         <ScrollView
           style={styles.paneScroll}
@@ -618,6 +608,7 @@ export function SubsPanel({ theme, layout, open, onOpenChange, variant = "sheet"
       open={open}
       title="订阅管理"
       onClose={() => onOpenChange(false)}
+      closeButton={false}
       footer={tab === "subs" ? opmlFooter : null}
     >
       {body}

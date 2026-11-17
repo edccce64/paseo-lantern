@@ -23,6 +23,8 @@ type Props = {
   children: ReactNode;
   /** 常驻底部的主操作，不随内容滚动 */
   footer?: ReactNode;
+  /** false 时标题栏不画关闭按钮，默认 true */
+  closeButton?: boolean;
   /** false 时点遮罩不关闭，默认 true */
   dismissible?: boolean;
 };
@@ -41,6 +43,7 @@ export function LanternSheet({
   onClose,
   children,
   footer,
+  closeButton = true,
   dismissible = true,
 }: Props) {
   const p = useMemo(() => palette(theme), [theme]);
@@ -91,15 +94,17 @@ export function LanternSheet({
             <Text style={[styles.title, { color: p.ink }]} numberOfLines={1}>
               {title}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="关闭"
-              hitSlop={8}
-              onPress={onClose}
-              style={styles.closeButton}
-            >
-              <Icon name="X" size={20} color={p.muted} />
-            </Pressable>
+            {closeButton ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="关闭"
+                hitSlop={8}
+                onPress={onClose}
+                style={styles.closeButton}
+              >
+                <Icon name="X" size={20} color={p.muted} />
+              </Pressable>
+            ) : null}
           </View>
           <ScrollView
             style={styles.scroll}

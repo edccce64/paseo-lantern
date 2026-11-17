@@ -223,9 +223,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       rowBody: { flex: 1, gap: 6 },
       leadTitle: {
         fontFamily: FONT.serif,
-        fontSize: 26,
+        fontSize: 24,
         fontWeight: "600" as const,
-        lineHeight: 36.4,
+        lineHeight: 33.6,
         color: p.ink,
       },
       leadTitleRead: { color: p.muted },

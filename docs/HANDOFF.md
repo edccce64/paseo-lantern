@@ -785,6 +785,23 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 
 注：字标「The Lantern」的墨迹高约 62 CSS px（图 915×168 缩到 338 宽），换算成字号约 80px，字面「跟字标一样大」做不得，所以按「明显降一档」处理。
 
+### 九、订阅管理改在右栏内联展示（只改桌面）
+
+用户要求：去掉右栏的「订阅管理」按钮（左侧已有齿轮）；桌面点齿轮时，订阅管理直接开在右栏，不再弹层。手机不动。
+
+做法：
+
+- `client/subs-panel.tsx` 新增 `variant?: "sheet" | "pane"`（默认 `sheet`）。内容抽成 `body`（tab 条 + 已订阅 / 发现），两种形态共用。
+  - `sheet`：仍是 `LanternSheet`，行为与之前完全一致（手机走这条）。
+  - `pane`：自绘右栏页 —— `paneHead`（标题「订阅管理」+ 右上 X）、`ScrollView`（内容封顶 620 居中）、`paneFooter`（导入 / 导出 OPML 常驻底部）。
+- `client/screen.tsx`：
+  - 删除右栏底部的「订阅管理」按钮与对应样式（`briefAction` / `briefActionText`）。
+  - 列表里的 `SubsPanel` 改为 `open={subsOpen && layout.compact}`，桌面不开弹层。
+  - 桌面分支：`subsOpen` 时右栏渲染 `<SubsPanel variant="pane" />`，否则 `articlePane ?? brief`。
+  - 齿轮 FAB 改为开关（`setSubsOpen(!subsOpen)`）；切频道、点收藏、点列表条目时 `setSubsOpen(false)`。
+
+已验证（真机界面）：点齿轮右栏变订阅管理（已订阅 / 发现两个 tab、删除、导入导出都可用）；点 X 回到之前的正文；点列表条目也会切回正文；右栏已无「订阅管理」按钮。已验证：`tsc` 0 错误；客户端禁用 API 扫 0 命中。未验证：手机端未上真机（代码路径未改）。
+
 ### 五、隶到的坑
 
 - 本机 Chrome headless 用 `--screenshot` 写文件会报「拒绝访问 (0x5)」，写系统盘也一样。改用 ego-browser 的 `page.screenshot({ path })`。

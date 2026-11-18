@@ -9,7 +9,7 @@ import { type ArticleVersion, articleRpc } from "../shared/article";
 import type { FeedItem } from "../shared/feed";
 import { EMPTY_STATE, itemKey, lanternStateSettings } from "../shared/settings";
 import { translateRequestRpc, translateStatusRpc } from "../shared/translate";
-import { buildCompanionPrompt } from "./companion";
+import { companionPromptFor } from "./companion";
 import { FONT, LABEL, type Palette, palette } from "./style";
 import { LanternSheet } from "./sheet";
 import { useHorizontalSwipe } from "./swipe";
@@ -747,7 +747,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   async function openCompanion() {
     setCompanion({
       open: true,
-      prompt: buildCompanionPrompt(item),
+      prompt: companionPromptFor(item),
       agentId: null,
       agentTitle: null,
       loading: false,

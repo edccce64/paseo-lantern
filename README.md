@@ -6,9 +6,9 @@
 - 英文名：**The Lantern**
 - 插件 id：`paseo-lantern`
 - 形态：Paseo 插件。手机上是全屏页，桌面上是可和 agent 并排的工作区面板，共用一套界面
-- 目标宿主：Paseo `>= 0.16.1`
+- 目标宿主：Paseo `>= 0.16.0`（0.16.0 与 0.16.1 都能用；陪读写入输入框需要 0.16 起）
 
-> **English**: The Lantern is a Paseo plugin that turns your agent into a reading companion. It reads AI news from AIHOT and the Qiaomu RSS service, renders the full article on a newspaper-style page, translates English posts in place, and hands any article to your most recently active agent when you want a guided read.
+> **English**: The Lantern is a Paseo plugin that turns your agent into a reading companion. It reads AI news from AIHOT and the Qiaomu RSS service, renders the full article on a newspaper-style page, translates English posts in place, and writes any article into the composer of your most recently active agent instead of sending it for you.
 
 ---
 
@@ -31,6 +31,7 @@
 - 正文不是摘要。daemon 会抓原文页并抽取正文；抽取失败时退回摘要。
 - 自建 Markdown 渲染器：标题、段落、引用、列表、代码块、图片、管状表格、行内加粗/斜体/代码/链接。
 - 报纸式排版：手写体报头、栏目横排、衬线标题、发丝线分隔。适配深色模式。
+- 桌面端专属：鸿蒙 HarmonyOS Sans SC 字体、左侧列表 380 宽、右侧「今日速览」与正文同屏，订阅管理直接开在右栏。手机上仍是单列推入。
 
 **陪读与翻译**
 
@@ -125,7 +126,7 @@ Zod 契约 (shared/)  ────────────────►  daemo
 
 ### 6.1 前置要求
 
-- **Paseo `>= 0.16.1`**（桌面端或手机端都行，手机端需要连到同一个 daemon）。
+- **Paseo `>= 0.16.0`**（桌面端或手机端都行，手机端需要连到同一个 daemon）。
 - **Node.js `>= 20`**：只有开发和类型检查需要。
 - **DeepSeek API Key**：只有「译文」功能需要，可选。
 
@@ -204,8 +205,9 @@ paseo plugin logs paseo-lantern       # 看 daemon 日志
 ├── client/                 # 跑在 Paseo 里的界面
 │   ├── screen.tsx          # 列表页 + 桌面两栏
 │   ├── article.tsx         # 正文页 + 自建 Markdown 渲染
-│   ├── subs-panel.tsx      # 订阅管理弹层
+│   ├── subs-panel.tsx      # 订阅管理：手机是底部弹层，桌面是右栏内联页
 │   ├── sheet.tsx           # 主题化弹层
+│   ├── swipe.ts            # 横向滑动判定（手机上正文页左滑返回）
 │   ├── style.ts            # 设计令牌（纸色、墨色、橙色、字体、小字排版）
 │   ├── wordmark.ts         # 手写体报头的内嵌 PNG（base64）
 │   ├── companion.ts        # 陪读提示词拼装
@@ -226,10 +228,11 @@ paseo plugin logs paseo-lantern       # 看 daemon 日志
 │   ├── page-article.ts     # 订阅条目正文抽取
 │   ├── qiaomu-article.ts   # 乔木正文与版本
 │   ├── ping.ts             # 自检 RPC
-│   ├── sources/            # AIHOT、乔木、HTTP 封装
+│   ├── sources/            # AIHOT、乔木、FxTwitter、HTTP 封装
 │   ├── feeds/parse.ts      # RSS / Atom / RDF / OPML 解析
 │   ├── text/               # Markdown 转换、语言判定、来源名清洗
-│   └── data/blog-catalog.ts# 内置 1342 条独立博客目录
+│   ├── data/blog-catalog.ts# 内置 1342 条独立博客目录
+│   └── data/curated-sources.ts # 「发现」页首页推荐源
 ├── shared/                 # 客户端与服务端共用的 Zod 契约
 └── docs/                   # 规格书、交接记录、界面走查
 ```
@@ -239,6 +242,7 @@ paseo plugin logs paseo-lantern       # 看 daemon 日志
 ## 8. 已知限制
 
 - 陪读只能写进「当前工作区最近活跃的 agent」的输入框，还不能手动挑 agent。
+- 插件要求宿主 `>= 0.16.0`。手机端的 Paseo 如果还是 0.15.x，侧边栏里看不到「提灯」——这是宿主按 `requirements.paseo` 主动跳过插件，不是插件坏了。升级手机 App 就好。
 - 乔木的译文接口对多数条目返回 `unavailable`，所以乔木侧的「译文」常常不可点。
 - 后台刷新依赖 daemon 常驻。daemon 停了，只有在打开频道时才会懒加载。
 - 订阅刷新间隔统一 15 分钟，还不能按源单独配置。

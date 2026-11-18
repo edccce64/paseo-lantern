@@ -4,7 +4,7 @@
 - 状态：需求已确认，未开始编码
 - 项目目录：本仓库目录
 - 插件 id：`paseo-lantern`　显示名：`提灯`（副标题：资讯陪读）
-- 目标宿主：本机 Paseo daemon `0.16.1`
+- 目标宿主：本机 Paseo daemon `0.16.1`（手机端连的是同一 daemon，但手机 App 可能是 0.16.0）
 
 命名含义：lantern 是提灯。信息海里点一盏灯，读到不懂的地方就有人陪你照一照。中英文都好读，方便写进 id。
 
@@ -31,7 +31,7 @@
 
 - daemon `0.16.1`，托管于桌面端，监听 `127.0.0.1:6767`，`serverId: srv_pnMpyAxcMJTR`。
 - CLI 路径 `D:\paseo\resources\bin\paseo.cmd`。它**不在** PATH 里，`paseo` 直接调用会 command not found。
-- 已有同类工程属性可参照：`requirements.paseo: ">=0.16.1"`。
+- 已有同类工程属性可参照：`requirements.paseo: ">=0.16.0"`。
 - 乔木源码 `joeseesun/qmreader`、`qmreader-ios`、`qiaomu-ai-rss` 均为 MIT。
 - `qiaomu-rss-dsh` 为 **GPL-3.0-only**。本项目只照功能重写，**不复制其代码**。
 - AIHOT 引擎 `KKKKhazix/AIHOT` 为 MIT，且提供匿名只读 API。

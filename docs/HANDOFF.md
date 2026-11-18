@@ -1,7 +1,7 @@
 # HANDOFF · paseo-lantern（提灯）
 
 最后更新：2026-11-18
-当前版本：宿主升到 Paseo 0.16.1；陪读从「直发」改为「写进 agent 输入框」；桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
+当前版本：宿主升到 Paseo 0.16.1，插件要求写 `>=0.16.0`（手机 App 是 0.16.0）；陪读从「直发」改为「写进 agent 输入框」；桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
 待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。手机上的陪读写入未验证。本轮的字体、右栏、订阅管理改动已由用户在桌面与手机实机确认（2026-11-18）。
 
 ---
@@ -836,6 +836,27 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 已验证：真机点开提灯 → 点文章 → 点「AI 陪读」→ 弹窗文案与按钮为新文案；点「写进输入框」后宿主跳到目标 agent 标签页，输入框里出现完整提示词（标题、来源、链接），没有发出去。
 - 已验证：验证完用 `ctrl+a` + `Delete` 清空了那个输入框。
 - 未验证：手机端的同样操作。
+
+## 11.30 手机侧边栏看不到提灯（2026-11-18）
+
+现象：电脑上侧边栏有「提灯」，手机上没有。插件本身 `running`。
+
+原因（已验证）：宿主的 `assertPluginCompatibility()` 比对 App 版本与 `requirements.paseo`。我把要求写成 `>=0.16.1`，而手机 App 是 **0.16.0**，于是手机直接跳过这个插件的全部客户端贡献（侧边栏行、屏幕、面板一起消失），界面上不报错。
+
+证据：
+
+- `~/.paseo/daemon.log` 里 relay 客户端 `cid_08df3a3c...` 的 `appVersion` 是 `0.16.0`；本机 loopback 客户端是 `0.16.1`。
+- 桌面 App 打包的 `app-dist/.../index-*.js` 里有校验函数：App 版本不满足 `requirements.paseo` 时抛错 `Plugin "<id>" requires Paseo <range>`，客户端贡献不加载。
+
+处理：`paseo-plugin.json` 的 `requirements.paseo` 改回 `>=0.16.0`。已核对 `@getpaseo/plugin@0.16.0` 也导出 `useComposers`，`insertText` 与 `focus` 签名一致，所以 0.16.0 够用。
+
+验证（2026-11-18）：
+
+- 已验证：`paseo plugin reload paseo-lantern` 后状态 `running`。
+- 已验证：`@getpaseo/plugin@0.16.0` 的 `dist/client/index.d.ts` 有 `useComposer` 与 `useComposers`；`composer.d.ts` 有 `insertText` 与 `focus`。
+- 未验证：手机侧边栏是否恢复 —— 需要在手机上重进 App 或重连后再看。
+
+#lesson 抬 `requirements.paseo` 之前先查手机端 App 版本。宿主不满足要求时静默跳过，界面上只表现为「插件不见了」。
 
 ---
 

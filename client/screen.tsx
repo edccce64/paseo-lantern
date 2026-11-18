@@ -124,12 +124,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     retry: 1,
   });
 
-  /** 收藏页的 GitHub 分类：只在真的切到那一栏时才联网 */
+  /** 收藏页的 GitHub 分类：列表只在切到那一栏时用；数据在打开收藏页时就取，卡片上的数字才准 */
   const starGithub = showStar && starTab === "github";
   const githubQuery = useQuery({
     queryKey: ["lantern", "github-stars"],
     queryFn: () => list({ channel: "github-stars", limit: 100 }),
-    enabled: starGithub,
+    enabled: showStar,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -191,27 +191,44 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       channelMarkActive: { flex: 1, backgroundColor: p.accent },
       channelSpacer: { height: 8, backgroundColor: p.paper },
 
-      // 收藏页的分类切换
-      starTabs: {
+      // 收藏页的两个入口卡片：文章 / 仓库
+      starCards: {
         flexDirection: "row" as const,
-        gap: 22,
+        gap: 10,
         paddingHorizontal: 16,
-        paddingTop: 4,
-        paddingBottom: 12,
+        paddingTop: 6,
+        paddingBottom: 10,
         backgroundColor: p.paper,
       },
-      starTab: { paddingVertical: 4 },
-      starTabSpacer: { flex: 1 },
-      starRefresh: {
-        width: 28,
-        height: 28,
-        alignItems: "center" as const,
-        justifyContent: "center" as const,
-        alignSelf: "center" as const,
+      starCard: {
+        flex: 1,
+        paddingHorizontal: 14,
+        paddingTop: 12,
+        paddingBottom: 11,
+        borderWidth: 1,
+        borderColor: p.rule,
+        borderRadius: 4,
+        backgroundColor: p.panel,
       },
-      starTabActive: { borderBottomWidth: 2, borderBottomColor: p.accent },
-      starTabText: { ...LABEL, color: p.muted },
-      starTabTextActive: { ...LABEL, color: p.accent },
+      starCardActive: {
+        borderColor: p.accent,
+        backgroundColor: p.paper,
+      },
+      starCardKey: { ...LABEL, color: p.muted },
+      starCardKeyActive: { ...LABEL, color: p.accent },
+      starCardCount: {
+        fontFamily: FONT.serif,
+        fontSize: 26,
+        lineHeight: 32,
+        color: p.ink,
+      },
+      starCardCountActive: {
+        fontFamily: FONT.serif,
+        fontSize: 26,
+        lineHeight: 32,
+        color: p.accent,
+      },
+      starCardUnit: { ...LABEL, color: p.muted, letterSpacing: 0.5 },
 
       // 搜索
       searchWrap: {
@@ -576,44 +593,40 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       <View style={styles.channelSpacer} />
 
       {isStarView ? (
-        <View style={styles.starTabs}>
+        <View style={styles.starCards}>
           {(
             [
-              { id: "articles", title: "文章" },
-              { id: "github", title: "GitHub 收藏" },
+              { id: "articles", title: "文章", unit: "星标的资讯", count: state.star.length },
+              {
+                id: "github",
+                title: "仓库",
+                unit: "GitHub 收藏",
+                count: githubQuery.data?.items.length ?? 0,
+              },
             ] as const
-          ).map((tab) => {
-            const active = starTab === tab.id;
+          ).map((card) => {
+            const active = starTab === card.id;
             return (
               <Pressable
-                key={tab.id}
+                key={card.id}
                 accessibilityRole="button"
-                accessibilityLabel={`收藏分类：${tab.title}`}
+                accessibilityLabel={`收藏分类：${card.title}，${card.count}`}
                 onPress={() => {
-                  setStarTab(tab.id);
+                  setStarTab(card.id);
                   setKeyword("");
                 }}
-                style={[styles.starTab, active ? styles.starTabActive : null]}
+                style={[styles.starCard, active ? styles.starCardActive : null]}
               >
-                <Text style={active ? styles.starTabTextActive : styles.starTabText}>
-                  {tab.title}
+                <Text style={active ? styles.starCardKeyActive : styles.starCardKey}>
+                  {card.title}
                 </Text>
+                <Text style={active ? styles.starCardCountActive : styles.starCardCount}>
+                  {card.count}
+                </Text>
+                <Text style={styles.starCardUnit}>{card.unit}</Text>
               </Pressable>
             );
           })}
-          <View style={styles.starTabSpacer} />
-          {starTab === "github" ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="刷新收藏"
-              disabled={refreshing}
-              onPress={() => void refresh()}
-              hitSlop={8}
-              style={styles.starRefresh}
-            >
-              <Icon name="RotateCw" size={15} color={refreshing ? colors.accent : colors.muted} />
-            </Pressable>
-          ) : null}
         </View>
       ) : null}
 

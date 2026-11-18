@@ -1,8 +1,8 @@
 # HANDOFF · paseo-lantern（提灯）
 
 最后更新：2026-11-18
-当前版本：桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
-待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。本轮的字体、右栏、订阅管理改动已由用户在桌面与手机实机确认（2026-11-18）。
+当前版本：宿主升到 Paseo 0.16.1；陪读从「直发」改为「写进 agent 输入框」；桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
+待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。手机上的陪读写入未验证。本轮的字体、右栏、订阅管理改动已由用户在桌面与手机实机确认（2026-11-18）。
 
 ---
 
@@ -51,7 +51,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
 | 推荐源搜索：内置 1342 个独立博客目录，搜名字或标签一键订阅 | 已完成（已验证 2026-11-14） |
-| 陪读：弹窗确认后发给最近活跃 agent | 已完成（已实测发送） |
+| 陪读：弹窗预览后写进最近活跃 agent 的输入框，不自动发 | 已完成（桌面已验证 2026-11-18，手机未验） |
 | 译文：AIHOT 与「我的订阅」的英文正文点一下，服务端直连 DeepSeek 翻成中文 | 已完成（界面已验证 2026-11-13） |
 | 已读：列表未读圆点，打开即标已读 | 已完成（已验证 2026-11-13） |
 | 收藏：正文页底部按钮 + 顶部「收藏」频道 | 已完成（已验证 2026-11-13，落盘 2026-11-14） |
@@ -73,8 +73,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 
 | 项 | 原计划 | 说明 |
 | --- | --- | --- |
-| Composer pill | agent 输入栏常驻按钮 | 被 0.16 卡住，见第 8 节 |
-| 正文写进输入框（不直接发） | 用 `insertText` + `focus()` | 同上 |
+| Composer pill | agent 输入栏常驻按钮 | 0.16.1 已支持，未做 |
 | `@` 附件源 | `addAttachmentSource` 注册 AIHOT 与乔木两个源 | 未做 |
 | 侧边栏未读数 | 行上显示未读条数 | 未做 |
 | 按源配置刷新间隔 | SPEC 5.3 写的 15–30 分钟 | 现在统一 15 分钟 |
@@ -211,20 +210,15 @@ AIHOT（匿名只读）：
 
 ---
 
-## 8. 卡在哪里：Paseo 0.15.4 没有 composer 写入
+## 8. composer 写入：0.16.1 已可用（2026-11-18 落地）
 
-- 当前桌面 app、daemon、npm 最新稳定版都是 **0.15.4**。
-- 0.15.4 的 `@getpaseo/plugin` 客户端只导出 `usePaseo` / `useAgent` / `useWorkspace` / `useHosts` / `useRpc` / `useSettings` / 文件 hooks / `openExternalUrl`。
-- 没有 `useComposers`，`PluginClientContext` 上也没有 `composers`。
-- `SendMessageOptions` 没有 draft 模式，只有 `agent.send()` 直发。
-- `useComposers` 在 `@getpaseo/plugin@0.16.0-beta.2` 里才有（包内有 `dist/client/composer.d.ts`）。
+- 旧限制（`0.15.4`）：客户端只导出 `usePaseo` / `useAgent` / `useWorkspace` / `useHosts` / `useRpc` / `useSettings` / 文件 hooks / `openExternalUrl`，没有 `useComposers`。
+- `0.16.1` 新增 `useComposers`、`useComposer`、`useAgents`、`useWorkspaces`、`useNewWorkspace` 等。`PluginComposer` 提供 `insertText` / `focus` / `setPrompt` / `addAttachment`。
+- 现状：`client/article.tsx` 用 `useComposers({ agentId })` 取目标 agent 的输入框，`insertText` 写入后用 `focus()` 把宿主切到那个标签页。弹窗保留，按钮写「写进输入框」。
+- 细节：`composers` 不在 `usePaseo()` 返回的 `PluginPaseoApi` 上（类型会报 TS2339），只能用 hook；hook 不能写在回调里，所以在组件顶层用 `companion.agentId ?? ""` 调。
+- 后续可做：Composer pill（`addComposerPill`）和 `@` 附件源（`addAttachmentSource`），两者在 0.16.1 都已存在。
 
-所以陪读做成了「弹窗预览 + 确认后直发」。等 0.16 正式版出来后：
-
-1. 升级 `@getpaseo/plugin` 的 devDependency，`requirements.paseo` 改 `>=0.16.0`。
-2. 把 `sendCompanion()` 改成 `insertText` + `focus`，弹窗保留。
-
-注意：本机桌面弹的「有可用更新」是别的软件，待装包其实是同版本 0.15.4，跟你无关。
+注意：本机桌面弹的「有可用更新」是别的软件，跟你无关。
 
 ---
 
@@ -259,6 +253,7 @@ AIHOT（匿名只读）：
 - 译文的失败重试与多段长文进度：正常路径已验证（2026-11-13 用户实点），失败态没造过。
 - 已读与收藏的跨设备同步：host settings 应跟着 host 走，但没有第二台设备验证。
 - 整个桌面 App 彻底重启后收藏是否还在：只验证到插件重载（2026-11-14），这时 daemon 子进程已重启、settings 从磁盘重读。
+- 手机上的陪读写入：`useComposers` 与 `focus()` 在手机上会跳标签页并弹键盘，只验过桌面。
 - iPhone 上的实际体验：手写字标是否被裁、标题 30pt 是否占屏过多、正文长文滚动、弹层（底部 sheet）是否能滚、键盘是否遮输入框、橙色浮动按钮是否挡内容、译文 chip。
 - 深色模式：字标已备奶油色版本，`palette()` 会按 `surface0` 亮度反相，但没实际切过。
 - 表格渲染：解析与样式已写，未在真文章上看到表格。
@@ -818,6 +813,32 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 本机 Chrome headless 用 `--screenshot` 写文件会报「拒绝访问 (0x5)」，写系统盘也一样。改用 ego-browser 的 `page.screenshot({ path })`。
 - Paseo 桌面 renderer 的 `--device-scale-factor=1.25`：窗口截图是设备像素，算 CSS 尺寸要除 1.25，否则会误判换行与字号。
 
+## 11.29 宿主升 0.16.1，陪读改为写进输入框（2026-11-18）
+
+用户要求：做交接文档第 12 节的第 6 项，此时本机已是 Paseo 0.16.1。
+
+改动：
+
+- `package.json`：`@getpaseo/plugin` 由 `0.15.4` 升到 `0.16.1`（`npm install --save-dev`）。
+- `paseo-plugin.json`：`requirements.paseo` 改 `>=0.16.1`。
+- `client/article.tsx`：`sendCompanion()` 换成 `writeCompanion()`；导入 `useComposers`；组件顶层加 `const companionComposers = useComposers({ agentId: companion.agentId ?? "" })`；写入用 `insertText`（输入框非空时补 `\n\n`），再 `focus()`。
+- 弹窗文案：「写进最近活跃 agent 的输入框，不自动发」；按钮「写进输入框」（写入中显示「写入中」）；toast「已写进 X 的输入框」。
+
+踩到的坑：
+
+- `paseo.composers(...)` 在类型上不在 `usePaseo()` 返回的 `PluginPaseoApi` 上，写 `paseo.composers` 报 TS2339。只能用 `useComposers` hook，而且不能在点击回调里调。
+- 宿主实现里确实有 `composers`（`app-dist` 里 `composers:o=>(0,n.pluginComposersSource)(c).resolve(o)`），但类型没暴露到 `PluginPaseoApi`。
+
+验证（2026-11-18）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0（升包后、改代码后各跑一次）。
+- 已验证：`paseo plugin reload paseo-lantern` 后状态 `running`，日志出现 `Plugin ready`。
+- 已验证：真机点开提灯 → 点文章 → 点「AI 陪读」→ 弹窗文案与按钮为新文案；点「写进输入框」后宿主跳到目标 agent 标签页，输入框里出现完整提示词（标题、来源、链接），没有发出去。
+- 已验证：验证完用 `ctrl+a` + `Delete` 清空了那个输入框。
+- 未验证：手机端的同样操作。
+
+---
+
 ## 12. 下次开工建议
 
 下一步优先级（按用户实际反馈排）：
@@ -827,13 +848,15 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 3. `@` 附件源：`addAttachmentSource` 注册 AIHOT 与乔木，选文章返回固定文本快照。
 4. 侧边栏行未读数：`SidebarRow` 支持 badge 时加上。
 5. 按源配置刷新间隔（SPEC 5.3）。
-6. 等 Paseo 0.16 正式版，把陪读从「直发」改成「写进输入框」。
+6. 陪读目标改成可手选 agent（现在只能取最近活跃的一个）。
 
 ---
 
 ## 13. 提交记录
 
 ```
+3952290 feat: write the companion prompt into the agent composer
+docs: record the 0.16.1 upgrade and the composer write（本条只改文档，不记提交号，确认最新 HEAD 用 git log -1）
 b26530a feat: add hand-picked recommended sources to the discover tab
 0cb3e76 docs: add README and MIT license for open-source release
 b9b1913 chore: ignore local env files and drop machine paths from docs

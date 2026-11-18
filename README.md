@@ -6,7 +6,7 @@
 - 英文名：**The Lantern**
 - 插件 id：`paseo-lantern`
 - 形态：Paseo 插件。手机上是全屏页，桌面上是可和 agent 并排的工作区面板，共用一套界面
-- 目标宿主：Paseo `>= 0.15.4`
+- 目标宿主：Paseo `>= 0.16.1`
 
 > **English**: The Lantern is a Paseo plugin that turns your agent into a reading companion. It reads AI news from AIHOT and the Qiaomu RSS service, renders the full article on a newspaper-style page, translates English posts in place, and hands any article to your most recently active agent when you want a guided read.
 
@@ -17,7 +17,7 @@
 信息流太多，读完又常常没读懂。提灯解决两件事：
 
 1. **读得下来**：把 AIHOT 精选、AIHOT 热点、乔木精选、你自己的 RSS 订阅收进一个安静的阅读界面。
-2. **读得懂**：点「AI 陪读」，当前 agent 会收到文章标题、来源和链接，然后带你从背景和概念读起。
+2. **读得懂**：点「AI 陪读」，提示词写进最近活跃 agent 的输入框，你还在自己的输入框里改字、加附件，然后自己按发送。
 
 它不生产内容，也不再造一个信息流。它只是把已有的公开源，交给一个已经在你身边的 agent。
 
@@ -34,7 +34,7 @@
 
 **陪读与翻译**
 
-- **AI 陪读**：弹窗预览提示词，确认后发给当前工作区最近活跃的 agent。不直接打断会话。
+- **AI 陪读**：弹窗预览提示词，确认后写进最近活跃 agent（本工作区）的输入框，不自动发。写入后界面会跳到那个 agent 的标签页。
 - **译文**：英文正文点一下，服务端直连 DeepSeek 分 6 路并发翻译，原地出中文稿，不跳页、不经过 agent。
 
 **订阅**
@@ -125,7 +125,7 @@ Zod 契约 (shared/)  ────────────────►  daemo
 
 ### 6.1 前置要求
 
-- **Paseo `>= 0.15.4`**（桌面端或手机端都行，手机端需要连到同一个 daemon）。
+- **Paseo `>= 0.16.1`**（桌面端或手机端都行，手机端需要连到同一个 daemon）。
 - **Node.js `>= 20`**：只有开发和类型检查需要。
 - **DeepSeek API Key**：只有「译文」功能需要，可选。
 
@@ -238,7 +238,7 @@ paseo plugin logs paseo-lantern       # 看 daemon 日志
 
 ## 8. 已知限制
 
-- 陪读只能发给「当前工作区最近活跃的 agent」，还不能手动挑 agent。
+- 陪读只能写进「当前工作区最近活跃的 agent」的输入框，还不能手动挑 agent。
 - 乔木的译文接口对多数条目返回 `unavailable`，所以乔木侧的「译文」常常不可点。
 - 后台刷新依赖 daemon 常驻。daemon 停了，只有在打开频道时才会懒加载。
 - 订阅刷新间隔统一 15 分钟，还不能按源单独配置。

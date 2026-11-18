@@ -4,7 +4,7 @@
 - 状态：需求已确认，未开始编码
 - 项目目录：本仓库目录
 - 插件 id：`paseo-lantern`　显示名：`提灯`（副标题：资讯陪读）
-- 目标宿主：本机 Paseo daemon `0.15.4`
+- 目标宿主：本机 Paseo daemon `0.16.1`
 
 命名含义：lantern 是提灯。信息海里点一盏灯，读到不懂的地方就有人陪你照一照。中英文都好读，方便写进 id。
 
@@ -29,9 +29,9 @@
 
 ## 3. 环境事实（已核实）
 
-- daemon `0.15.4`，托管于桌面端，监听 `127.0.0.1:6767`，`serverId: srv_pnMpyAxcMJTR`。
+- daemon `0.16.1`，托管于桌面端，监听 `127.0.0.1:6767`，`serverId: srv_pnMpyAxcMJTR`。
 - CLI 路径 `D:\paseo\resources\bin\paseo.cmd`。它**不在** PATH 里，`paseo` 直接调用会 command not found。
-- 已有同类工程属性可参照：`requirements.paseo: ">=0.15.4"`。
+- 已有同类工程属性可参照：`requirements.paseo: ">=0.16.1"`。
 - 乔木源码 `joeseesun/qmreader`、`qmreader-ios`、`qiaomu-ai-rss` 均为 MIT。
 - `qiaomu-rss-dsh` 为 **GPL-3.0-only**。本项目只照功能重写，**不复制其代码**。
 - AIHOT 引擎 `KKKKhazix/AIHOT` 为 MIT，且提供匿名只读 API。
@@ -213,14 +213,25 @@ import { Markdown } from "@getpaseo/plugin/client/ui";
 const agents = useAgents({ where: (a) => a.workspace.key === workspaceKey, orderBy: ["lastActivityAt", "desc"] });
 ```
 
-### 11.2 动作（v1 实现说明）
+### 11.2 动作（v1 实际实现）
 
-0.15.4 没有 composer 写入接口，`useComposers` 只在 0.16 beta。
-所以 v1 是：弹窗预览 + 确认后 `agent.send()` 直接发送。
+宿主从 `0.15.4` 升到 `0.16.1` 后有了 composer 写入接口，v1 走这条：
 
-0.16 正式版后可切成 `insertText` + `focus()`，弹窗保留。
+```ts
+// 组件内必须用 hook，回调里拿不到 paseo.composers
+const composers = useComposers({ agentId: agentId ?? "" });
 
-### 11.2 原计划动作
+const composer = composers[0];
+composer.insertText(`${composer.prompt.trim() ? "\n\n" : ""}${promptText}`);
+await composer.focus();
+```
+
+- 用 `insertText` 不用 `setPrompt`，保护用户已写的草稿；输入框非空时先插两个换行。
+- `focus()` 把宿主切到这个 agent 的标签页。实测它会把界面从提灯跳到该 agent。
+- 弹窗保留，按钮文案改「写进输入框」，不自动发。
+- `composers` 不在 `usePaseo()` 返回的对象上（那是 `PluginPaseoApi`），只能用 `useComposers` hook。
+
+### 11.2.1 原计划（已落地）
 
 ```ts
 // 组件内

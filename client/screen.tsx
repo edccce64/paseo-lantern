@@ -25,6 +25,7 @@ const CHANNELS: Array<{ id: ViewChannel; title: string; full: string }> = [
   { id: "aihot-selected", title: "精选", full: "AIHOT 精选" },
   { id: "aihot-hot", title: "热点", full: "AIHOT 热点" },
   { id: "qiaomu", title: "乔木", full: "乔木精选" },
+  { id: "star", title: "收藏", full: "收藏" },
   { id: "mine", title: "订阅", full: "我的订阅" },
 ];
 
@@ -84,8 +85,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const list = useRpc(listRpc);
   const settings = useSettings(lanternStateSettings);
   const [channel, setChannel] = useState<ViewChannel>("aihot-selected");
-  /** 订阅频道里看收藏：收藏不占标签，从订阅列表进，从收藏列表回 */
-  const [showStar, setShowStar] = useState(false);
   /** 收藏页的两个分类：本地星标文章 / GitHub 收藏的仓库 */
   const [starTab, setStarTab] = useState<"articles" | "github">("articles");
   const [openItem, setOpenItem] = useState<FeedItem | null>(null);
@@ -120,16 +119,17 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const query = useQuery({
     queryKey: ["lantern", channel],
     queryFn: () => list({ channel: channel as ChannelId, limit: 60 }),
+    enabled: channel !== "star",
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
   /** 收藏页的 GitHub 分类：列表只在切到那一栏时用；数据在打开收藏页时就取，卡片上的数字才准 */
-  const starGithub = showStar && starTab === "github";
+  const starGithub = channel === "star" && starTab === "github";
   const githubQuery = useQuery({
     queryKey: ["lantern", "github-stars"],
     queryFn: () => list({ channel: "github-stars", limit: 100 }),
-    enabled: showStar,
+    enabled: channel === "star",
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -444,7 +444,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     };
   }, [colors, layout.compact]);
 
-  const isStarView = channel === "mine" && showStar;
+  const isStarView = channel === "star";
 
   async function refresh() {
     if (isStarView && !starGithub) return;
@@ -570,7 +570,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               accessibilityLabel={`频道：${entry.full}`}
               onPress={() => {
                 setChannel(entry.id);
-                setShowStar(false);
                 setSubsOpen(false);
               }}
               style={styles.channelCell}
@@ -591,6 +590,33 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         ))}
       </View>
       <View style={styles.channelSpacer} />
+
+      {rawData.length > 0 || isStarView ? (
+        <View style={styles.searchWrap}>
+          <View style={styles.searchRow}>
+            <TextInput
+              value={keyword}
+              onChangeText={setKeyword}
+              placeholder="搜标题或来源"
+              placeholderTextColor={colors.muted}
+              style={styles.searchInput}
+              returnKeyType="search"
+              accessibilityLabel="搜索"
+            />
+            {keyword.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="清空搜索"
+                onPress={() => setKeyword("")}
+                hitSlop={6}
+                style={styles.searchClear}
+              >
+                <Icon name="X" size={15} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
       {isStarView ? (
         <View style={styles.starCards}>
@@ -627,33 +653,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               </Pressable>
             );
           })}
-        </View>
-      ) : null}
-
-      {rawData.length > 0 ? (
-        <View style={styles.searchWrap}>
-          <View style={styles.searchRow}>
-            <TextInput
-              value={keyword}
-              onChangeText={setKeyword}
-              placeholder="搜标题或来源"
-              placeholderTextColor={colors.muted}
-              style={styles.searchInput}
-              returnKeyType="search"
-              accessibilityLabel="搜索"
-            />
-            {keyword.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="清空搜索"
-                onPress={() => setKeyword("")}
-                hitSlop={6}
-                style={styles.searchClear}
-              >
-                <Icon name="X" size={15} color={colors.muted} />
-              </Pressable>
-            ) : null}
-          </View>
         </View>
       ) : null}
 
@@ -734,21 +733,6 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
 
       {channel === "mine" ? (
         <View style={styles.fabStack}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`收藏，${state.star.length} 条`}
-            onPress={() => {
-              setShowStar(!isStarView);
-              setSubsOpen(false);
-            }}
-            style={[styles.fab, isStarView ? styles.fabQuiet : null]}
-          >
-            <Icon
-              name="Star"
-              size={22}
-              color={isStarView ? colors.accent : colors.onAccent}
-            />
-          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="订阅管理"

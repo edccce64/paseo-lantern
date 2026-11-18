@@ -8,16 +8,20 @@ export const CHANNELS = [
   { id: "mine", title: "我的订阅" },
 ] as const;
 
-/** 收藏页里的 GitHub 分类：不占频道栏，只给收藏页的第二个分类用 */
+/** 「收藏」频道：数据来自本地 settings，不走服务端 */
+export const STAR_CHANNEL = "star" as const;
+
+/** 收藏页里的 GitHub 分类 */
 export const GITHUB_CHANNEL = "github-stars" as const;
 
-export type ChannelId = (typeof CHANNELS)[number]["id"] | typeof GITHUB_CHANNEL;
+export type ChannelId = (typeof CHANNELS)[number]["id"] | typeof STAR_CHANNEL | typeof GITHUB_CHANNEL;
 
 export const channelIdSchema = z.enum([
   "aihot-selected",
   "aihot-hot",
   "qiaomu",
   "mine",
+  "star",
   "github-stars",
 ]);
 

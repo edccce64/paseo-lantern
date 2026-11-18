@@ -854,7 +854,7 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 
 - 已验证：`paseo plugin reload paseo-lantern` 后状态 `running`。
 - 已验证：`@getpaseo/plugin@0.16.0` 的 `dist/client/index.d.ts` 有 `useComposer` 与 `useComposers`；`composer.d.ts` 有 `insertText` 与 `focus`。
-- 未验证：手机侧边栏是否恢复 —— 需要在手机上重进 App 或重连后再看。
+- 已验证：手机上侧边栏「提灯」已恢复（2026-11-18 用户实机确认，手机 App 更新后可见）。
 
 #lesson 抬 `requirements.paseo` 之前先查手机端 App 版本。宿主不满足要求时静默跳过，界面上只表现为「插件不见了」。
 

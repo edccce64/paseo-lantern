@@ -129,7 +129,7 @@ Zod 契约 (shared/)  ────────────────►  daemo
 - **Paseo `>= 0.16.0`**（桌面端或手机端都行，手机端需要连到同一个 daemon）。
 - **Node.js `>= 20`**：只有开发和类型检查需要。
 - **DeepSeek API Key**：只有「译文」功能需要，可选。
-- **一个名为 `the lantern` 的 workspace**：「AI 陪读」在这个 workspace 里开新对话。没有就在 Paseo 里建一个，或用 `paseo workspace create --isolation local --title "the lantern" --path <目录>`。
+- **一个名为 `the-lantern` 的项目**：「AI 陪读」在这个项目目录下开新对话。插件会自动复用或新建 workspace，只要项目在就行。
 
 ### 6.2 安装
 

@@ -201,6 +201,14 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         backgroundColor: p.paper,
       },
       starTab: { paddingVertical: 4 },
+      starTabSpacer: { flex: 1 },
+      starRefresh: {
+        width: 28,
+        height: 28,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        alignSelf: "center" as const,
+      },
       starTabActive: { borderBottomWidth: 2, borderBottomColor: p.accent },
       starTabText: { ...LABEL, color: p.muted },
       starTabTextActive: { ...LABEL, color: p.accent },
@@ -593,6 +601,19 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
               </Pressable>
             );
           })}
+          <View style={styles.starTabSpacer} />
+          {starTab === "github" ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="刷新收藏"
+              disabled={refreshing}
+              onPress={() => void refresh()}
+              hitSlop={8}
+              style={styles.starRefresh}
+            >
+              <Icon name="RotateCw" size={15} color={refreshing ? colors.accent : colors.muted} />
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -789,7 +810,9 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                   <Text style={styles.briefTitle}>今日速览</Text>
                   <View style={styles.briefRule} />
                   <View style={styles.briefTight}>
-                    <Text style={styles.briefChannel}>{isStarView ? "收藏" : channelMeta?.full ?? ""}</Text>
+                    <Text style={styles.briefChannel}>
+                      {starGithub ? "GitHub 收藏" : isStarView ? "收藏" : (channelMeta?.full ?? "")}
+                    </Text>
                     <Text style={styles.briefCount}>
                       <Text style={styles.briefCountNum}>{rawData.length}</Text> 条内容
                     </Text>
@@ -807,11 +830,13 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                   ) : null}
                 </View>
                 <View style={styles.briefActions}>
-                  {isStarView ? null : (
+                  {isStarView && !starGithub ? null : (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="刷新"
+                      disabled={refreshing}
                       onPress={() => void refresh()}
+                      hitSlop={8}
                       style={styles.briefIcon}
                     >
                       <Icon name="RotateCw" size={17} color={refreshing ? colors.accent : colors.ink} />

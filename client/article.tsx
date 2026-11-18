@@ -37,6 +37,7 @@ function formatWhen(iso: string): string {
 function channelName(item: FeedItem): string {
   if (item.source === "qiaomu") return "乔木精选";
   if (item.source === "rss") return "我的订阅";
+  if (item.source === "github") return "GitHub 收藏";
   if (item.source === "xfeed") return "XFeed AI";
   if (item.badge && item.badge.includes("家信源")) return "AIHOT 热点";
   return "AIHOT 精选";

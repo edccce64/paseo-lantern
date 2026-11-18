@@ -64,6 +64,8 @@ function stateLabel(state: FeedState): string {
 
 /** 来源短名：服务端给了 site 就用 site，否则退回 origin */
 function sourceName(item: FeedItem): string {
+  // 仓库的 origin 是「语言 · ★星数」，比 owner 名有用
+  if (item.source === "github") return item.origin;
   const site = (item as { site?: string | null }).site ?? null;
   return site ?? item.origin ?? "";
 }
@@ -84,6 +86,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const [channel, setChannel] = useState<ViewChannel>("aihot-selected");
   /** 订阅频道里看收藏：收藏不占标签，从订阅列表进，从收藏列表回 */
   const [showStar, setShowStar] = useState(false);
+  /** 收藏页的两个分类：本地星标文章 / GitHub 收藏的仓库 */
+  const [starTab, setStarTab] = useState<"articles" | "github">("articles");
   const [openItem, setOpenItem] = useState<FeedItem | null>(null);
   const [subsOpen, setSubsOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
@@ -116,6 +120,16 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const query = useQuery({
     queryKey: ["lantern", channel],
     queryFn: () => list({ channel: channel as ChannelId, limit: 60 }),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  /** 收藏页的 GitHub 分类：只在真的切到那一栏时才联网 */
+  const starGithub = showStar && starTab === "github";
+  const githubQuery = useQuery({
+    queryKey: ["lantern", "github-stars"],
+    queryFn: () => list({ channel: "github-stars", limit: 100 }),
+    enabled: starGithub,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -176,6 +190,20 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       channelMark: { flex: 1 },
       channelMarkActive: { flex: 1, backgroundColor: p.accent },
       channelSpacer: { height: 8, backgroundColor: p.paper },
+
+      // 收藏页的分类切换
+      starTabs: {
+        flexDirection: "row" as const,
+        gap: 22,
+        paddingHorizontal: 16,
+        paddingTop: 4,
+        paddingBottom: 12,
+        backgroundColor: p.paper,
+      },
+      starTab: { paddingVertical: 4 },
+      starTabActive: { borderBottomWidth: 2, borderBottomColor: p.accent },
+      starTabText: { ...LABEL, color: p.muted },
+      starTabTextActive: { ...LABEL, color: p.accent },
 
       // 搜索
       searchWrap: {
@@ -394,11 +422,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
   const isStarView = channel === "mine" && showStar;
 
   async function refresh() {
-    if (isStarView) return;
+    if (isStarView && !starGithub) return;
     setRefreshing(true);
     try {
-      const fresh = await list({ channel, limit: 60, force: true });
-      queryClient.setQueryData(["lantern", channel], fresh);
+      const target = starGithub ? "github-stars" : channel;
+      const fresh = await list({ channel: target as ChannelId, limit: 60, force: true });
+      queryClient.setQueryData(["lantern", target], fresh);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "刷新失败");
     } finally {
@@ -406,10 +435,11 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     }
   }
 
-  const rawData = useMemo(
-    () => (isStarView ? state.star : (query.data?.items ?? [])),
-    [isStarView, state.star, query.data?.items],
-  );
+  const rawData = useMemo(() => {
+    if (starGithub) return githubQuery.data?.items ?? [];
+    if (isStarView) return state.star;
+    return query.data?.items ?? [];
+  }, [starGithub, githubQuery.data?.items, isStarView, state.star, query.data?.items]);
 
   // 搜索只过滤当前频道，不动已读与收藏
   const data = useMemo(() => {
@@ -424,13 +454,18 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     });
   }, [rawData, keyword]);
 
-  const isPending = !isStarView && query.isPending;
-  const isError = !isStarView && query.isError;
-  const statusText = isStarView
-    ? `${state.star.length} 条收藏`
-    : query.data
-      ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
-      : "";
+  const isPending = starGithub ? githubQuery.isPending : !isStarView && query.isPending;
+  const isError = starGithub ? githubQuery.isError : !isStarView && query.isError;
+  const activeError = starGithub ? githubQuery.error : query.error;
+  const statusText = starGithub
+    ? githubQuery.data
+      ? `${stateLabel(githubQuery.data.state)} ${formatTime(githubQuery.data.fetchedAt)}`
+      : ""
+    : isStarView
+      ? `${state.star.length} 条收藏`
+      : query.data
+        ? `${stateLabel(query.data.state)} ${formatTime(query.data.fetchedAt)}`
+        : "";
 
   const channelMeta = CHANNELS.find((entry) => entry.id === channel);
 
@@ -460,7 +495,7 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
         accessibilityRole="button"
         accessibilityLabel={item.title}
         onPress={() => open(item)}
-        onLongPress={isStarView ? () => setUnstarTarget(item) : undefined}
+        onLongPress={isStarView && !starGithub ? () => setUnstarTarget(item) : undefined}
         style={styles.row}
       >
         <View style={styles.markCol}>{unread ? <View style={styles.unreadMark} /> : null}</View>
@@ -532,6 +567,35 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       </View>
       <View style={styles.channelSpacer} />
 
+      {isStarView ? (
+        <View style={styles.starTabs}>
+          {(
+            [
+              { id: "articles", title: "文章" },
+              { id: "github", title: "GitHub 收藏" },
+            ] as const
+          ).map((tab) => {
+            const active = starTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                accessibilityRole="button"
+                accessibilityLabel={`收藏分类：${tab.title}`}
+                onPress={() => {
+                  setStarTab(tab.id);
+                  setKeyword("");
+                }}
+                style={[styles.starTab, active ? styles.starTabActive : null]}
+              >
+                <Text style={active ? styles.starTabTextActive : styles.starTabText}>
+                  {tab.title}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
       {rawData.length > 0 ? (
         <View style={styles.searchWrap}>
           <View style={styles.searchRow}>
@@ -566,12 +630,12 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
       ) : isError ? (
         <View style={styles.state}>
           <Text style={styles.stateText}>
-            {query.error instanceof Error ? query.error.message : "载入失败"}
+            {activeError instanceof Error ? activeError.message : "载入失败"}
           </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="重试"
-            onPress={() => void query.refetch()}
+            onPress={() => void (starGithub ? githubQuery.refetch() : query.refetch())}
             style={styles.retry}
           >
             <Text style={styles.retryText}>重试</Text>
@@ -583,8 +647,8 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
           keyExtractor={(item) => `${item.source}-${item.id}`}
           renderItem={({ item, index }) => renderRow(item, index === 0)}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          refreshing={isStarView ? false : refreshing}
-          onRefresh={isStarView ? undefined : () => void refresh()}
+          refreshing={isStarView && !starGithub ? false : refreshing}
+          onRefresh={isStarView && !starGithub ? undefined : () => void refresh()}
           contentContainerStyle={
             data.length === 0 ? { flexGrow: 1 } : channel === "mine" ? { paddingBottom: 96 } : undefined
           }
@@ -619,7 +683,13 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
                     color={colors.muted}
                   />
                   <Text style={styles.stateText}>
-                    {isStarView ? "还没有收藏" : channel === "mine" ? "还没有订阅" : "暂无内容"}
+                    {starGithub
+                      ? "拉不到收藏的仓库"
+                      : isStarView
+                        ? "还没有收藏"
+                        : channel === "mine"
+                          ? "还没有订阅"
+                          : "暂无内容"}
                   </Text>
                 </>
               )}

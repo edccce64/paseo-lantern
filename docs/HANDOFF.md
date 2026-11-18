@@ -917,6 +917,34 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 已验证：一次弹窗只建一个对话（`~/.paseo/agents/C-Users-edcccc-.paseo-the-lantern/` 里的文件数只 +1）。
 - 未验证：手机端实际手感；多次取消后 spare 复用是否正常（逻辑上会复用，没有实测第二轮取消）。
 
+## 11.33 收藏页加分类：文章 / GitHub 收藏（2026-11-18）
+
+用户要求：不新增频道，直接在「收藏」里分两类——文章、GitHub 收藏。
+
+做法：
+
+- `shared/feed.ts`：`channelIdSchema` 加 `github-stars`（只给收藏页用，不进频道栏）；`feedItemSchema.source` 加 `github`。新增 `GITHUB_CHANNEL` 常量。
+- `server/sources/github.ts`（新增）：`GET https://api.github.com/users/{login}/starred?per_page=100`，匿名可读，最多翻 3 页；账号默认 `edccce64`，可用环境变量 `LANTERN_GITHUB_LOGIN` 覆盖。条目 `id` = `github:<owner>/<repo>`，`origin` = `语言 · ★星数`，`publishedAt` = 最近提交时间，按提交时间倒序；缓存 key `github-stars`，TTL 30 分钟。
+- `server/github-article.ts`（新增）：正文 = 仓库 README。依次试 `README.md` / `readme.md` / `README` / `Readme.md` / `README.markdown`；缓存 24 小时；把相对图片改成 `raw.githubusercontent.com/...`、相对链接改成 `github.com/.../blob/...`；把 README 里常见的 HTML `<img>` / `<a>` 转成 Markdown，其余标签剥掉，常见实体解码。
+- `server/feed.ts`、`server/article.ts`：各加一路分发（`id` 以 `github:` 开头就走 README）。
+- `client/screen.tsx`：收藏页顶部加两个分类「文章 / GitHub 收藏」；GitHub 分类才联网（`enabled`），取 100 条；`sourceName()` 对 github 条目用 `origin`（否则只显示 owner）；下拉刷新、错误提示、空状态按分类区分。
+- `client/article.tsx`：`channelName()` 认 `github` → 「GitHub 收藏」。译文 chip 不出现（`looksEnglish` 为 false）。
+
+验证（2026-11-18 桌面）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：收藏页出现「文章 / GitHub 收藏」两个分类；切到 GitHub 后有 94 条，与 `gh api /users/edccce64/starred --jq length` 一致；缓存文件 `~/.paseo/data/paseo-lantern/github-stars.json` 94 条。
+- 已验证：点开 `getpaseo/paseo`，README 正文出现，星标与 release 徽章图片能显示，署名显示 `getpaseo · NOV 18, 2026 · 13:34`，右上角分类写「GitHub 收藏」。
+- 已验证：`3441293738/creatorhub` 的 HTML `<img>` 被转成 Markdown 图片，不再显示成一串 HTML 源码（SVG 图在列表里看不到，未确认是否渲染）。
+- 未验证：手机端；没有 README 的仓库提示；GitHub 返回 429 时的「离线缓存」分支。
+
+已知限制：
+
+- 只看得到公开收藏，私有仓库与隐藏收藏不会出现。
+- 匿名限额 60 次/小时/IP；列表 30 分钟刷一次，正常够用。
+- README 的 SVG 图可能不渲染（RN Image 限制），PNG/JPG 正常。
+- 收藏页列表条数上限 100；收藏超过 100 时只看得到最近提交的前 100 个。
+
 ---
 
 ## 12. 下次开工建议

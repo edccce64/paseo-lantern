@@ -3,6 +3,7 @@ import type { ListResult } from "../shared/feed";
 import { listRpc } from "../shared/feed";
 import { listMine } from "./mine";
 import { fetchAihot } from "./sources/aihot";
+import { fetchGithubStars } from "./sources/github";
 import { fetchQiaomu } from "./sources/qiaomu";
 
 export async function listFeed({
@@ -16,7 +17,9 @@ export async function listFeed({
       ? await listMine(size, force === true)
       : channel === "qiaomu"
         ? await fetchQiaomu(size, force === true)
-        : await fetchAihot(channel, size, force === true);
+        : channel === "github-stars"
+          ? await fetchGithubStars(size, force === true)
+          : await fetchAihot(channel, size, force === true);
 
   return {
     items: result.items,

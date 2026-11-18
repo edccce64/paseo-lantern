@@ -8,14 +8,23 @@ export const CHANNELS = [
   { id: "mine", title: "我的订阅" },
 ] as const;
 
-export type ChannelId = (typeof CHANNELS)[number]["id"];
+/** 收藏页里的 GitHub 分类：不占频道栏，只给收藏页的第二个分类用 */
+export const GITHUB_CHANNEL = "github-stars" as const;
 
-export const channelIdSchema = z.enum(["aihot-selected", "aihot-hot", "qiaomu", "mine"]);
+export type ChannelId = (typeof CHANNELS)[number]["id"] | typeof GITHUB_CHANNEL;
+
+export const channelIdSchema = z.enum([
+  "aihot-selected",
+  "aihot-hot",
+  "qiaomu",
+  "mine",
+  "github-stars",
+]);
 
 export const feedItemSchema = z.object({
   id: z.string(),
-  /** xfeed 是已删除的频道，只为兼容旧收藏快照保留 */
-  source: z.enum(["aihot", "qiaomu", "rss", "xfeed"]),
+  /** xfeed 是已删除的频道，只为兼容旧收藏快照保留；github 是收藏页里的仓库 */
+  source: z.enum(["aihot", "qiaomu", "rss", "xfeed", "github"]),
   title: z.string(),
   /** 来源名，例如「TechCrunch：AI（RSS）」 */
   origin: z.string(),

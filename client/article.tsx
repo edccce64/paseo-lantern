@@ -308,8 +308,20 @@ type Props = {
   onBack: () => void;
 };
 
-/** 陪读固定开在这个 workspace 里，大小写不敏感 */
-const COMPANION_WORKSPACE = "the lantern";
+/** 陪读固定开在这个项目目录下，大小写、空格、连字符不敏感 */
+const COMPANION_PROJECT = "the-lantern";
+
+/** `the lantern` / `the-lantern` / `The_Lantern` 都归一成 `the-lantern` */
+function normalizeName(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_]+/g, "-");
+}
+
+/** 项目目录的最后一段 */
+function lastSegment(fsPath: string): string {
+  const trimmed = fsPath.replace(/[\\/]+$/, "");
+  const parts = trimmed.split(/[\\/]+/);
+  return parts[parts.length - 1] ?? "";
+}
 
 /** 新对话的标题：取文章标题前 24 字 */
 function companionTitle(title: string): string {
@@ -692,11 +704,17 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     if (companion.sending || companion.writing) return;
     setCompanion((state) => ({ ...state, sending: true, error: null }));
     try {
-      const list = await paseo.workspaces.list();
-      const target = list.entries.find(
-        (entry) => (entry.title ?? entry.name).trim().toLowerCase() === COMPANION_WORKSPACE,
+      const projects = await paseo.projects.list();
+      const project = projects.projects.find(
+        (entry) =>
+          normalizeName(entry.projectCustomName ?? entry.projectDisplayName) === COMPANION_PROJECT ||
+          normalizeName(lastSegment(entry.projectRootPath)) === COMPANION_PROJECT,
       );
-      if (!target) throw new Error("找不到名为「the lantern」的 workspace。先建一个再回来点。");
+      if (!project) {
+        throw new Error("找不到名为 the-lantern 的项目。先在 Paseo 里建一个，目录随便选。");
+      }
+      // open 会在项目目录下复用已有 workspace，没有就新建一个
+      const workspace = await paseo.workspaces.open({ cwd: project.projectRootPath });
 
       const recent = await paseo.agents.list({
         scope: "active",
@@ -706,7 +724,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       const carrier = recent.entries[0]?.agent;
       if (!carrier) throw new Error("先随便开一个对话。新对话要照它的模型创建。");
 
-      const created = await paseo.workspaces.ref(target.id).agents.create({
+      const created = await paseo.workspaces.ref(workspace.id).agents.create({
         config: {
           provider: carrier.model ? `${carrier.provider}/${carrier.model}` : carrier.provider,
           ...(carrier.currentModeId ? { modeId: carrier.currentModeId } : {}),
@@ -755,7 +773,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     const spacer = composer.prompt.trim() ? "\n\n" : "";
     composer.insertText(`${spacer}${companion.prompt}`);
     void composer.focus().catch(() => toast.error("没能切到新对话的标签页"));
-    toast.show("已在 the lantern 里开好新对话", { variant: "success" });
+    toast.show("已在 the-lantern 里开好新对话", { variant: "success" });
     companionWrote.current = false;
     setCompanion((state) => ({
       ...state,
@@ -1160,7 +1178,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         }
       >
         <View style={styles.dialog}>
-          <Text style={styles.dialogHint}>在 the lantern 里开一个新对话，把提示词写进它的输入框，不自动发</Text>
+          <Text style={styles.dialogHint}>在 the-lantern 项目下开一个新对话，把提示词写进它的输入框，不自动发</Text>
           <View style={styles.preview}>
             <Text style={styles.previewText}>{companion.prompt}</Text>
           </View>

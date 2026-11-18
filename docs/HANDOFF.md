@@ -245,7 +245,7 @@ AIHOT（匿名只读）：
 2. 订阅条目的正文页有「原文 / 译文」两个 chip（只对英文正文出现）。
 3. 后台刷新只在 daemon 运行时跑。daemon 停了，只能在打开频道时懒加载。
 4. 乔木译文接口对多数样本返回 `unavailable`，译文 chip 常是灰的。
-5. 陪读固定开在名为「the lantern」的 workspace 里，换目标要改常量 COMPANION_WORKSPACE。新对话的模型照最近活跃的 agent 来，不能单独指定。
+5. 陪读固定开在名为 the-lantern 的项目目录下，换目标要改常量 COMPANION_PROJECT。新对话的模型照最近活跃的 agent 来，不能单独指定。
 6. 手机上没有两栏：宽屏判断用 `layout.compact`，手机上始终单列推入。
 
 ## 11. 没验证过的
@@ -858,7 +858,7 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 
 #lesson 抬 `requirements.paseo` 之前先查手机端 App 版本。宿主不满足要求时静默跳过，界面上只表现为「插件不见了」。
 
-## 11.31 陪读改成在 the lantern 里开新对话（2026-11-18）
+## 11.31 陪读改成在 the-lantern 项目里开新对话（2026-11-18）
 
 用户要求：直接在 Paseo 里开一个叫「the lantern」的 workspace；点陪读写输入框时，自动开一个新对话。
 
@@ -866,9 +866,9 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 
 - 新建 workspace：`paseo workspace create --isolation local --title "the lantern" --path "C:\Users\edcccc\.paseo\the-lantern"`，得到 `wks_0eb6ed2a888c4543`，项目名 `the-lantern`。
 - `client/article.tsx`：
-  - 常量 `COMPANION_WORKSPACE = "the lantern"`，按 `title ?? name`、去空格、小写比对。
+  - 常量 `COMPANION_PROJECT = "the-lantern"`；`normalizeName()` 把空格与下划线并成连字符再比对项目名或目录末段。
   - `openCompanion()` 只拼提示词开弹窗，不再去查最近活跃的 agent。
-  - `writeCompanion()`：`paseo.workspaces.list()` 找 the lantern → `paseo.agents.list()` 取最近活跃 agent 的 provider/model/mode/thinking 当模板 → `paseo.workspaces.ref(id).agents.create({ config, title })` 建新对话 → 把新 agent id 存进 state。
+  - `writeCompanion()`：`paseo.projects.list()` 找 the-lantern → `paseo.workspaces.open({ cwd: 项目目录 })` 复用或新建 workspace → `paseo.agents.list()` 取最近活跃 agent 的 provider/model/mode/thinking 当模板 → `paseo.workspaces.ref(id).agents.create({ config, title })` 建新对话 → 把新 agent id 存进 state。
   - `useEffect`：`companionComposers[0]` 出现后 `insertText` + `focus()`，弹窗关闭；12 秒没出现就报错，不静默卡住。用 `companionWrote` ref 防重复写入。
   - 弹窗文案：「在 the lantern 里开一个新对话，把提示词写进它的输入框，不自动发」；按钮「开新对话」/「建对话中」/「写入中」。
 - 新对话标题取文章标题前 24 字。
@@ -881,6 +881,18 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 已验证：点「开新对话」后按钮变「建对话中」，`paseo ls` 出现新 agent `60835625-af83-4ab3-91ed-8db90194059a`，标题「腾讯混元 Hy4 flash 开放权重，含 FP…」，`cwd` 为 `~\.paseo\the-lantern`，状态 `idle`。
 - 已验证：界面跳到 workspace「the lantern」的该标签页，输入框里有完整提示词，没有发出。
 - 未验证：手机端同样操作；the lantern 里没有 agent 时的模板回退（现在没有可用的活跃 agent 会直接报错）。
+
+### 11.31.1 手机报「找不到 workspace」后的修正（2026-11-18 13:10）
+
+现象：手机上点「开新对话」报「找不到名为「the lantern」的 workspace」，桌面上同样的操作却正常。
+
+排查：`paseo workspace ls` 里已经没有 the-lantern 项目的 workspace，但 `paseo project ls` 里项目还在。`~/.paseo/agents/C-Users-edcccc-.paseo-the-lantern/` 下两个 agent 的 `archivedAt` 都是 `2026-11-18T04:58:30Z`。这两个对话被归档后，那个 workspace 就不再算 active，按名字查列表也就查不到。
+
+修正：不再依赖已有 workspace。改成先按项目名（或目录末段）找项目，再用 `paseo.workspaces.open({ cwd: projectRootPath })` 复用或新建 workspace。`open` 对已有目录返回现有 workspace，没有就建。
+
+已验证（2026-11-18 桌面）：改前 workspace 确实不在 `workspace ls` 里；点一次「开新对话」后，`workspace ls` 重新出现 `the lantern`（cwd `C:\Users\edcccc\.paseo\the-lantern`），`paseo ls` 出现新对话，输入框里有提示词且没有发出。
+
+未验证：手机端同样操作。
 
 ---
 

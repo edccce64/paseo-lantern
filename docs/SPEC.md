@@ -207,13 +207,13 @@ import { Markdown } from "@getpaseo/plugin/client/ui";
 
 ### 11.1 目标对话
 
-固定在名为「the lantern」的 workspace 里新建对话（2026-11-18 起，用户指定）。找不到这个 workspace 就报错，不静默换目标。
+固定在名为 the-lantern 的项目目录下新建对话（2026-11-18 起，用户指定）。做法：按项目名或目录末段找项目，用 `paseo.workspaces.open({ cwd: projectRootPath })` 复用或新建 workspace，再在它里面开新对话。找不到项目才报错。
 
 新对话的 provider / model / mode / thinking 照当前最近活跃的那个 agent 抄一份：插件自己没有模型设置。
 
 ### 11.2 动作（v1 实际实现）
 
-流程：找 the lantern → 建新对话 → 等它的输入框出现 → 写入 → `focus()`。实测按钮点下去约 1 秒内完成。
+流程：找 the-lantern 项目 → open 它的目录拿 workspace → 建新对话 → 等输入框出现 → 写入 → `focus()`。实测按钮点下去约 1 秒内完成。
 
 ```ts
 // 组件内必须用 hook，回调里拿不到 paseo.composers

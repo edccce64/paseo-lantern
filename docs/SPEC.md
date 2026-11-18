@@ -205,17 +205,15 @@ import { Markdown } from "@getpaseo/plugin/client/ui";
 
 ## 11. 陪读
 
-### 11.1 目标 agent
+### 11.1 目标对话
 
-当前工作区里 `lastActivityAt` 最新的 agent。取法：
+固定在名为「the lantern」的 workspace 里新建对话（2026-11-18 起，用户指定）。找不到这个 workspace 就报错，不静默换目标。
 
-```ts
-const agents = useAgents({ where: (a) => a.workspace.key === workspaceKey, orderBy: ["lastActivityAt", "desc"] });
-```
+新对话的 provider / model / mode / thinking 照当前最近活跃的那个 agent 抄一份：插件自己没有模型设置。
 
 ### 11.2 动作（v1 实际实现）
 
-宿主从 `0.15.4` 升到 `0.16.1` 后有了 composer 写入接口，v1 走这条：
+流程：找 the lantern → 建新对话 → 等它的输入框出现 → 写入 → `focus()`。实测按钮点下去约 1 秒内完成。
 
 ```ts
 // 组件内必须用 hook，回调里拿不到 paseo.composers
@@ -228,7 +226,9 @@ await composer.focus();
 
 - 用 `insertText` 不用 `setPrompt`，保护用户已写的草稿；输入框非空时先插两个换行。
 - `focus()` 把宿主切到这个 agent 的标签页。实测它会把界面从提灯跳到该 agent。
-- 弹窗保留，按钮文案改「写进输入框」，不自动发。
+- 弹窗保留，按钮文案「开新对话」，不自动发。
+- 新对话标题取文章标题前 24 字。
+- 12 秒内拿不到新对话的输入框就报错，避免按钮一直转。
 - `composers` 不在 `usePaseo()` 返回的对象上（那是 `PluginPaseoApi`），只能用 `useComposers` hook。
 
 ### 11.2.1 原计划（已落地）

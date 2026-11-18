@@ -307,6 +307,15 @@ type Props = {
   layout: PluginScreenProps["layout"];
   onBack: () => void;
 };
+
+/** 陪读固定开在这个 workspace 里，大小写不敏感 */
+const COMPANION_WORKSPACE = "the lantern";
+
+/** 新对话的标题：取文章标题前 24 字 */
+function companionTitle(title: string): string {
+  const clean = title.trim();
+  return clean.length > 24 ? `${clean.slice(0, 24)}…` : clean || "陪读";
+}
 export function ArticleView({ item, theme, layout, onBack }: Props) {
   const toast = useToast();
   const paseo = usePaseo();
@@ -323,8 +332,12 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     agentTitle: null as string | null,
     loading: false,
     sending: false,
+    /** 已建好新对话，等它的输入框出现 */
+    writing: false,
     error: null as string | null,
   });
+  /** 写入只做一次，防止 effect 重跑重复插入 */
+  const companionWrote = useRef(false);
   const [translating, setTranslating] = useState(false);
   /** 陪读目标 agent 的输入框；agentId 为空时拿到空数组。hook 不能写在点击回调里。 */
   const companionComposers = useComposers({ agentId: companion.agentId ?? "" });
@@ -662,66 +675,97 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   }, [colors, compact]);
 
   async function openCompanion() {
-    const prompt = buildCompanionPrompt(item);
     setCompanion({
       open: true,
-      prompt,
+      prompt: buildCompanionPrompt(item),
       agentId: null,
       agentTitle: null,
-      loading: true,
+      loading: false,
       sending: false,
+      writing: false,
       error: null,
     });
-    try {
-      const result = await paseo.agents.list({
-        scope: "active",
-        sort: [{ key: "updated_at", direction: "desc" }],
-        page: { limit: 5 },
-      });
-      const first = result.entries[0];
-      if (!first) {
-        setCompanion((state) => ({
-          ...state,
-          loading: false,
-          error: "没有可用的 agent。先在工作区里开一个，再回来点陪读。",
-        }));
-        return;
-      }
-      setCompanion((state) => ({
-        ...state,
-        loading: false,
-        agentId: first.agent.id,
-        agentTitle: first.agent.title ?? "未命名 agent",
-      }));
-    } catch (error) {
-      setCompanion((state) => ({
-        ...state,
-        loading: false,
-        error: error instanceof Error ? error.message : "找不到可用的 agent",
-      }));
-    }
   }
 
-  /** 写进输入框，不直接发：用户还能改字、加附件、换 agent */
+  /** 点一下：在 the lantern 里开一个新对话，把提示词写进它的输入框，不自动发 */
   async function writeCompanion() {
-    if (!companion.agentId) return;
+    if (companion.sending || companion.writing) return;
     setCompanion((state) => ({ ...state, sending: true, error: null }));
     try {
-      const composer = companionComposers[0];
-      if (!composer) throw new Error("这个 agent 现在没有可写入的输入框");
-      const spacer = composer.prompt.trim() ? "\n\n" : "";
-      composer.insertText(`${spacer}${companion.prompt}`);
-      await composer.focus();
-      toast.show(`已写进 ${companion.agentTitle ?? "agent"} 的输入框`, { variant: "success" });
-      setCompanion((state) => ({ ...state, open: false, sending: false }));
+      const list = await paseo.workspaces.list();
+      const target = list.entries.find(
+        (entry) => (entry.title ?? entry.name).trim().toLowerCase() === COMPANION_WORKSPACE,
+      );
+      if (!target) throw new Error("找不到名为「the lantern」的 workspace。先建一个再回来点。");
+
+      const recent = await paseo.agents.list({
+        scope: "active",
+        sort: [{ key: "updated_at", direction: "desc" }],
+        page: { limit: 1 },
+      });
+      const carrier = recent.entries[0]?.agent;
+      if (!carrier) throw new Error("先随便开一个对话。新对话要照它的模型创建。");
+
+      const created = await paseo.workspaces.ref(target.id).agents.create({
+        config: {
+          provider: carrier.model ? `${carrier.provider}/${carrier.model}` : carrier.provider,
+          ...(carrier.currentModeId ? { modeId: carrier.currentModeId } : {}),
+          ...(carrier.thinkingOptionId ? { thinkingOptionId: carrier.thinkingOptionId } : {}),
+        },
+        title: companionTitle(item.title),
+      });
+
+      setCompanion((state) => ({
+        ...state,
+        sending: false,
+        writing: true,
+        agentId: created.id,
+        agentTitle: companionTitle(item.title),
+      }));
     } catch (error) {
       setCompanion((state) => ({
         ...state,
         sending: false,
-        error: error instanceof Error ? error.message : "写不进输入框",
+        writing: false,
+        error: error instanceof Error ? error.message : "开不了新对话",
       }));
     }
   }
+
+  /** 新对话的输入框出现后，写入提示词并切过去 */
+  useEffect(() => {
+    if (!companion.writing) return;
+    const composer = companionComposers[0];
+    if (!composer) {
+      const timer = setTimeout(() => {
+        setCompanion((state) =>
+          state.writing
+            ? {
+                ...state,
+                writing: false,
+                error: "新对话已开好，但输入框还没出现。去 the lantern 里手动粘一次。",
+              }
+            : state,
+        );
+      }, 12000);
+      return () => clearTimeout(timer);
+    }
+    if (companionWrote.current) return;
+    companionWrote.current = true;
+    const spacer = composer.prompt.trim() ? "\n\n" : "";
+    composer.insertText(`${spacer}${companion.prompt}`);
+    void composer.focus().catch(() => toast.error("没能切到新对话的标签页"));
+    toast.show("已在 the lantern 里开好新对话", { variant: "success" });
+    companionWrote.current = false;
+    setCompanion((state) => ({
+      ...state,
+      open: false,
+      writing: false,
+      sending: false,
+      agentId: null,
+      agentTitle: null,
+    }));
+  }, [companion.writing, companion.prompt, companionComposers, toast]);
 
   /** 点「译文」：没译文就开翻，已有就切过去 */
   async function startTranslate() {
@@ -1103,20 +1147,20 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="写进这个 agent 的输入框"
-              disabled={!companion.agentId || companion.sending}
+              accessibilityLabel="开新对话并写入"
+              disabled={companion.sending || companion.writing}
               onPress={() => void writeCompanion()}
               style={styles.send}
             >
               <Text style={styles.sendText} numberOfLines={1}>
-                {companion.sending ? "写入中" : "写进输入框"}
+                {companion.writing ? "写入中" : companion.sending ? "建对话中" : "开新对话"}
               </Text>
             </Pressable>
           </View>
         }
       >
         <View style={styles.dialog}>
-          <Text style={styles.dialogHint}>写进最近活跃 agent 的输入框，不自动发</Text>
+          <Text style={styles.dialogHint}>在 the lantern 里开一个新对话，把提示词写进它的输入框，不自动发</Text>
           <View style={styles.preview}>
             <Text style={styles.previewText}>{companion.prompt}</Text>
           </View>

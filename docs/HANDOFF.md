@@ -1,7 +1,7 @@
 # HANDOFF · paseo-lantern（提灯）
 
 最后更新：2026-11-18
-当前版本：宿主升到 Paseo 0.16.1，插件要求写 `>=0.16.0`（手机 App 是 0.16.0）；陪读从「直发」改为「写进 agent 输入框」；桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
+当前版本：宿主升到 Paseo 0.16.1，插件要求写 `>=0.16.0`（手机 App 是 0.16.0）；陪读改为在 the lantern 里开新对话并写入输入框；桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
 待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。手机上的陪读写入未验证。本轮的字体、右栏、订阅管理改动已由用户在桌面与手机实机确认（2026-11-18）。
 
 ---
@@ -51,7 +51,7 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 乔木版本切换：原文 / 译文 / 乔木改写 | 已完成 |
 | 个人订阅：加源、删源、导入导出 OPML | 已完成 |
 | 推荐源搜索：内置 1342 个独立博客目录，搜名字或标签一键订阅 | 已完成（已验证 2026-11-14） |
-| 陪读：弹窗预览后写进最近活跃 agent 的输入框，不自动发 | 已完成（桌面已验证 2026-11-18，手机未验） |
+| 陪读：在 the lantern 里开新对话，把提示词写进输入框，不自动发 | 已完成（桌面已验证 2026-11-18，手机未验） |
 | 译文：AIHOT 与「我的订阅」的英文正文点一下，服务端直连 DeepSeek 翻成中文 | 已完成（界面已验证 2026-11-13） |
 | 已读：列表未读圆点，打开即标已读 | 已完成（已验证 2026-11-13） |
 | 收藏：正文页底部按钮 + 顶部「收藏」频道 | 已完成（已验证 2026-11-13，落盘 2026-11-14） |
@@ -245,7 +245,7 @@ AIHOT（匿名只读）：
 2. 订阅条目的正文页有「原文 / 译文」两个 chip（只对英文正文出现）。
 3. 后台刷新只在 daemon 运行时跑。daemon 停了，只能在打开频道时懒加载。
 4. 乔木译文接口对多数样本返回 `unavailable`，译文 chip 常是灰的。
-5. 陪读只能发给「最近更新过的 agent」，没有手动选目标的功能。
+5. 陪读固定开在名为「the lantern」的 workspace 里，换目标要改常量 COMPANION_WORKSPACE。新对话的模型照最近活跃的 agent 来，不能单独指定。
 6. 手机上没有两栏：宽屏判断用 `layout.compact`，手机上始终单列推入。
 
 ## 11. 没验证过的
@@ -253,7 +253,7 @@ AIHOT（匿名只读）：
 - 译文的失败重试与多段长文进度：正常路径已验证（2026-11-13 用户实点），失败态没造过。
 - 已读与收藏的跨设备同步：host settings 应跟着 host 走，但没有第二台设备验证。
 - 整个桌面 App 彻底重启后收藏是否还在：只验证到插件重载（2026-11-14），这时 daemon 子进程已重启、settings 从磁盘重读。
-- 手机上的陪读写入：`useComposers` 与 `focus()` 在手机上会跳标签页并弹键盘，只验过桌面。
+- 手机上的陪读写入与建新对话：`useComposers`、`focus()` 与 `agents.create` 只验过桌面。
 - iPhone 上的实际体验：手写字标是否被裁、标题 30pt 是否占屏过多、正文长文滚动、弹层（底部 sheet）是否能滚、键盘是否遮输入框、橙色浮动按钮是否挡内容、译文 chip。
 - 深色模式：字标已备奶油色版本，`palette()` 会按 `surface0` 亮度反相，但没实际切过。
 - 表格渲染：解析与样式已写，未在真文章上看到表格。
@@ -857,6 +857,30 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 已验证：手机上侧边栏「提灯」已恢复（2026-11-18 用户实机确认，手机 App 更新后可见）。
 
 #lesson 抬 `requirements.paseo` 之前先查手机端 App 版本。宿主不满足要求时静默跳过，界面上只表现为「插件不见了」。
+
+## 11.31 陪读改成在 the lantern 里开新对话（2026-11-18）
+
+用户要求：直接在 Paseo 里开一个叫「the lantern」的 workspace；点陪读写输入框时，自动开一个新对话。
+
+做法：
+
+- 新建 workspace：`paseo workspace create --isolation local --title "the lantern" --path "C:\Users\edcccc\.paseo\the-lantern"`，得到 `wks_0eb6ed2a888c4543`，项目名 `the-lantern`。
+- `client/article.tsx`：
+  - 常量 `COMPANION_WORKSPACE = "the lantern"`，按 `title ?? name`、去空格、小写比对。
+  - `openCompanion()` 只拼提示词开弹窗，不再去查最近活跃的 agent。
+  - `writeCompanion()`：`paseo.workspaces.list()` 找 the lantern → `paseo.agents.list()` 取最近活跃 agent 的 provider/model/mode/thinking 当模板 → `paseo.workspaces.ref(id).agents.create({ config, title })` 建新对话 → 把新 agent id 存进 state。
+  - `useEffect`：`companionComposers[0]` 出现后 `insertText` + `focus()`，弹窗关闭；12 秒没出现就报错，不静默卡住。用 `companionWrote` ref 防重复写入。
+  - 弹窗文案：「在 the lantern 里开一个新对话，把提示词写进它的输入框，不自动发」；按钮「开新对话」/「建对话中」/「写入中」。
+- 新对话标题取文章标题前 24 字。
+
+为什么照最近活跃 agent 建：`agents.create` 必须给 `config.provider`（`provider/model` 格式），插件没有自己的模型设置，照用户当前在用的模型最省事。
+
+验证（2026-11-18，桌面实机）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：点「开新对话」后按钮变「建对话中」，`paseo ls` 出现新 agent `60835625-af83-4ab3-91ed-8db90194059a`，标题「腾讯混元 Hy4 flash 开放权重，含 FP…」，`cwd` 为 `~\.paseo\the-lantern`，状态 `idle`。
+- 已验证：界面跳到 workspace「the lantern」的该标签页，输入框里有完整提示词，没有发出。
+- 未验证：手机端同样操作；the lantern 里没有 agent 时的模板回退（现在没有可用的活跃 agent 会直接报错）。
 
 ---
 

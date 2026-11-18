@@ -7,6 +7,7 @@ import type {
   translateRequestRpc,
   translateStatusRpc,
 } from "../shared/translate";
+import { fetchGithubArticle } from "./github-article";
 import { fetchPageArticle } from "./page-article";
 import { readTranslation, writeTranslation } from "./translate-store";
 
@@ -171,14 +172,23 @@ async function run(
   job: Job,
 ): Promise<void> {
   try {
-    const article = await fetchPageArticle({
-      id: input.id,
-      url: input.url,
-      title: input.title,
-      origin: input.origin ?? "订阅",
-      publishedAt: input.publishedAt ?? new Date().toISOString(),
-      summary: input.summary ?? null,
-    });
+    const article = input.id.startsWith("github:")
+      ? await fetchGithubArticle({
+          id: input.id,
+          url: input.url,
+          title: input.title,
+          origin: input.origin ?? "GitHub",
+          publishedAt: input.publishedAt ?? new Date().toISOString(),
+          summary: input.summary ?? null,
+        })
+      : await fetchPageArticle({
+          id: input.id,
+          url: input.url,
+          title: input.title,
+          origin: input.origin ?? "订阅",
+          publishedAt: input.publishedAt ?? new Date().toISOString(),
+          summary: input.summary ?? null,
+        });
 
     const body = article.markdown?.trim() ?? "";
     if (body.length < 200) throw new Error("正文太短，先等正文出来再翻");

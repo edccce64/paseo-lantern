@@ -22,6 +22,7 @@ export async function getArticle({
       origin: origin ?? "GitHub",
       publishedAt: publishedAt ?? new Date().toISOString(),
       summary: summary ?? null,
+      version,
     });
   }
   if (typeof url === "string" && url.length > 0) {

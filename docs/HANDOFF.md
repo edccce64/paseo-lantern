@@ -1004,6 +1004,26 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 已验证：进收藏频道后顺序是 搜索框 → 两张卡片（文章 1 / 仓库 94）→ 列表；下「今日速览」显示「收藏 / 1 条内容」。
 - 已验证：点「仓库」卡片，列表切成仓库，「今日速览」变「GitHub 收藏 / 94 条内容」，刷新图标还在。
 - 未验证：手机端 5 个频道标签是否挤（桌面左列 380 宽下没换行）；手机下拉刷新。
+## 11.37 GitHub 收藏加原文 / 译文（2026-11-18）
+
+用户要求：仓库正文也要有「原文 / 译文」。同时反馈手机端刷新可用、五个频道标签不挤。
+
+改动：
+
+- `server/github-article.ts`：接受 `version`；读 `readTranslation(id)` 决定有没有译文；`looksEnglish` 用 `isMostlyEnglish()` 判断 README；`version === "translation"` 且已有译文时返回译文。
+- `server/article.ts`：把 `version` 传给 `fetchGithubArticle`。
+- `server/translate.ts`：`id` 以 `github:` 开头时改走 `fetchGithubArticle` 取正文，不再去抓网页。
+- `client/article.tsx`：新增 `isGithub`，把它加进译文状态轮询、`showTranslate`、「译文 chip 可点」三处条件。
+
+验证（2026-11-18 桌面）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：打开 `nexu-io/openmotion`，正文顶部出现「原文 / 译文」两个 chip，默认原文。
+- 已验证：点「译文」后 chip 变「翻译 0/47」，正文下方出现「正在翻译 0/47 段」；约 1 分多钟后译文落盘 `~/.paseo/data/paseo-lantern/translations/7b4c33a93bac9b8b.json`，页面切到译文，标注「来自仓库 README 的译文」。
+- 已验证（用户实机）：手机端下拉刷新可用；五个频道标签在手机上不挤。
+- 未验证：翻译失败态（key 缺失 / 429）在仓库正文上的表现。
+
+注意：README 动辄几十段，长 README 一次翻译约 1 分钟，属于 DeepSeek 分段并发（6 路）。
 ---
 
 ## 12. 下次开工建议

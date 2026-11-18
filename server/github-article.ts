@@ -1,6 +1,8 @@
-import type { ArticleResult } from "../shared/article";
+import type { ArticleResult, ArticleVersion } from "../shared/article";
 import { readCache, writeCache } from "./cache";
 import { getText } from "./sources/http";
+import { isMostlyEnglish } from "./text/lang";
+import { readTranslation } from "./translate-store";
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 const CANDIDATES = ["README.md", "readme.md", "README", "Readme.md", "README.markdown"];
@@ -12,6 +14,7 @@ type GithubArticleInput = {
   origin: string;
   publishedAt: string;
   summary: string | null;
+  version?: ArticleVersion;
 };
 
 function cacheKey(owner: string, repo: string): string {
@@ -114,22 +117,38 @@ export async function fetchGithubArticle(input: GithubArticleInput): Promise<Art
 
   const key = cacheKey(repo.owner, repo.repo);
   const cached = await readCache<{ markdown: string }>(key);
+
+  let body: string | null = null;
   if (cached && Date.now() - cached.fetchedAt < TTL_MS) {
-    return { ...empty, markdown: cached.data.markdown, bodyState: "full", note: "来自仓库 README" };
+    body = cached.data.markdown;
+  } else {
+    try {
+      const raw = await fetchReadme(repo.owner, repo.repo);
+      if (!raw) return { ...empty, note: "这个仓库没有 README" };
+      const { text } = absolutize(raw, repo.owner, repo.repo);
+      await writeCache(key, { data: { markdown: text }, etag: null, fetchedAt: Date.now() });
+      body = text;
+    } catch (error) {
+      if (!cached) throw error;
+      body = cached.data.markdown;
+    }
   }
 
-  try {
-    const raw = await fetchReadme(repo.owner, repo.repo);
-    if (!raw) {
-      return { ...empty, note: "这个仓库没有 README" };
+  const translation = await readTranslation(input.id);
+  const base: ArticleResult = {
+    ...empty,
+    markdown: body,
+    bodyState: "full",
+    versions: { original: true, translation: translation !== null, rewrite: false },
+    looksEnglish: body ? isMostlyEnglish(body) : false,
+  };
+
+  if (input.version === "translation") {
+    if (translation) {
+      return { ...base, markdown: translation.markdown, note: "来自仓库 README 的译文" };
     }
-    const { text } = absolutize(raw, repo.owner, repo.repo);
-    await writeCache(key, { data: { markdown: text }, etag: null, fetchedAt: Date.now() });
-    return { ...empty, markdown: text, bodyState: "full", note: "来自仓库 README" };
-  } catch (error) {
-    if (cached) {
-      return { ...empty, markdown: cached.data.markdown, bodyState: "full", note: "来自仓库 README" };
-    }
-    throw error;
+    return { ...base, note: "这篇还没译，点上面的「译文」。" };
   }
+
+  return { ...base, note: "来自仓库 README" };
 }

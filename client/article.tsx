@@ -376,6 +376,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       });
   }
   const isQiaomu = item.source === "qiaomu";
+  const isGithub = item.source === "github";
   const isRss = item.source === "rss";
   const isAihot = item.source === "aihot";
   // XFeed 频道已删，但旧收藏里还有那些条目，仍能读正文与译文
@@ -404,7 +405,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   const statusQuery = useQuery({
     queryKey: ["lantern-translate-status", item.id],
     queryFn: () => translateStatus({ id: item.id }),
-    enabled: (isRss || isAihot || isXfeed) && translating,
+    enabled: (isRss || isAihot || isXfeed || isGithub) && translating,
     refetchInterval: translating ? 2000 : false,
     retry: 1,
   });
@@ -874,7 +875,8 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
 
   /** AIHOT 和「我的订阅」的英文正文才给译文 chip；乔木自己有译文 */
   const showTranslate =
-    (isRss || isAihot || isXfeed) && ((result?.looksEnglish ?? false) || versions.translation);
+    (isRss || isAihot || isXfeed || isGithub) &&
+    ((result?.looksEnglish ?? false) || versions.translation);
   const chips: Array<{ id: ArticleVersion; title: string }> = isQiaomu
     ? VERSION_LABELS
     : showTranslate

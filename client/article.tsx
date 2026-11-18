@@ -1,5 +1,5 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { openExternalUrl, usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
+import { openExternalUrl, useComposers, usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -326,6 +326,8 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     error: null as string | null,
   });
   const [translating, setTranslating] = useState(false);
+  /** 陪读目标 agent 的输入框；agentId 为空时拿到空数组。hook 不能写在点击回调里。 */
+  const companionComposers = useComposers({ agentId: companion.agentId ?? "" });
   const [translateSteps, setTranslateSteps] = useState({ done: 0, total: 0 });
   const [translateError, setTranslateError] = useState("");
   const lanternState = settings.status === "ready" ? settings.values : EMPTY_STATE;
@@ -700,18 +702,23 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     }
   }
 
-  async function sendCompanion() {
+  /** 写进输入框，不直接发：用户还能改字、加附件、换 agent */
+  async function writeCompanion() {
     if (!companion.agentId) return;
     setCompanion((state) => ({ ...state, sending: true, error: null }));
     try {
-      await paseo.agents.ref(companion.agentId).send(companion.prompt);
-      toast.show(`已发给 ${companion.agentTitle ?? "agent"}`, { variant: "success" });
+      const composer = companionComposers[0];
+      if (!composer) throw new Error("这个 agent 现在没有可写入的输入框");
+      const spacer = composer.prompt.trim() ? "\n\n" : "";
+      composer.insertText(`${spacer}${companion.prompt}`);
+      await composer.focus();
+      toast.show(`已写进 ${companion.agentTitle ?? "agent"} 的输入框`, { variant: "success" });
       setCompanion((state) => ({ ...state, open: false, sending: false }));
     } catch (error) {
       setCompanion((state) => ({
         ...state,
         sending: false,
-        error: error instanceof Error ? error.message : "发送失败",
+        error: error instanceof Error ? error.message : "写不进输入框",
       }));
     }
   }
@@ -1096,20 +1103,20 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="发送给这个 agent"
+              accessibilityLabel="写进这个 agent 的输入框"
               disabled={!companion.agentId || companion.sending}
-              onPress={() => void sendCompanion()}
+              onPress={() => void writeCompanion()}
               style={styles.send}
             >
               <Text style={styles.sendText} numberOfLines={1}>
-                {companion.sending ? "发送中" : "发送"}
+                {companion.sending ? "写入中" : "写进输入框"}
               </Text>
             </Pressable>
           </View>
         }
       >
         <View style={styles.dialog}>
-          <Text style={styles.dialogHint}>以下内容将发送给最近活跃的 agent</Text>
+          <Text style={styles.dialogHint}>写进最近活跃 agent 的输入框，不自动发</Text>
           <View style={styles.preview}>
             <Text style={styles.previewText}>{companion.prompt}</Text>
           </View>

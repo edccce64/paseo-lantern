@@ -1,8 +1,8 @@
 # HANDOFF · paseo-lantern（提灯）
 
 最后更新：2026-11-18
-当前版本：宿主升到 Paseo 0.16.1，插件要求写 `>=0.16.0`（手机 App 是 0.16.0）；陪读改为在 the lantern 里开新对话并写入输入框；桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter + 收藏并入订阅频道。
-待验证：手机上的滑动手感（桌面已用鼠标拖拽验证，真机未验）。深色模式、键盘避让仍未验证。手机上的陪读写入未验证。本轮的字体、右栏、订阅管理改动已由用户在桌面与手机实机确认（2026-11-18）。
+当前版本：宿主 Paseo 0.16.1，插件要求写 `>=0.16.0`；陪读改为在 the-lantern 项目里开新对话并写入输入框（弹窗打开就预建，点完约 1.5 秒）；收藏页分「文章 / GitHub 收藏」两类，GitHub 分类读公开 star 并渲染 README；收藏页与「今日速览」都有刷新按钮；桌面换鸿蒙字体 + 右栏「今日速览」居中 B 版 + 订阅管理开在右栏；白底主题 + X 链接正文走 FxTwitter。
+待验证：手机上的滑动手感、陪读写入、GitHub 收藏分类、两处刷新按钮都只验过桌面。深色模式、键盘避让仍未验证。字体、右栏、订阅管理改动已由用户在桌面与手机实机确认（2026-11-18）。
 
 ---
 
@@ -54,7 +54,9 @@ rg -n "document\.|window\.|localStorage|navigator\.|<[a-z]+[ >]|className=|onCli
 | 陪读：在 the lantern 里开新对话，把提示词写进输入框，不自动发 | 已完成（桌面已验证 2026-11-18，手机未验） |
 | 译文：AIHOT 与「我的订阅」的英文正文点一下，服务端直连 DeepSeek 翻成中文 | 已完成（界面已验证 2026-11-13） |
 | 已读：列表未读圆点，打开即标已读 | 已完成（已验证 2026-11-13） |
-| 收藏：正文页底部按钮 + 顶部「收藏」频道 | 已完成（已验证 2026-11-13，落盘 2026-11-14） |
+| 收藏：正文页底部按钮 + 从「我的订阅」进收藏页 | 已完成（已验证 2026-11-13，落盘 2026-11-14） |
+| 收藏页分类：文章 / GitHub 收藏（星标仓库 + README） | 已完成（桌面已验证 2026-11-18，手机未验） |
+| 刷新按钮：收藏页 GitHub 分类 + 「今日速览」 | 已完成（桌面已验证 2026-11-18） |
 | 桌面工作区分屏面板：和 agent 并排看同一份界面 | 已完成（已验证） |
 | 桌面宽屏两栏：左列列表 380，右侧读正文，选文章不替换整页 | 已完成（已验证 2026-11-14） |
 | 桌面字体：鸿蒙 HarmonyOS Sans SC（标题 / 正文 / 标签统一） | 已完成（已验证 2026-11-18，真机界面） |
@@ -945,6 +947,23 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - README 的 SVG 图可能不渲染（RN Image 限制），PNG/JPG 正常。
 - 收藏页列表条数上限 100；收藏超过 100 时只看得到最近提交的前 100 个。
 
+## 11.34 收藏页与「今日速览」加刷新按钮（2026-11-18）
+
+用户要求：今日速览下面加刷新按钮；收藏那里也加一个。
+
+改动（`client/screen.tsx`）：
+
+- 收藏页分类行右侧：GitHub 分类下显示刷新图标（`starRefresh`），点它重新拉取 star 列表。文章分类不显示，因为那是本地快照。
+- 「今日速览」的刷新图标不再对收藏视图隐藏；只在收藏页的文章分类里隐藏（没有可重取的数据）。
+- 「今日速览」的频道名按分类显示：`GitHub 收藏` / `收藏` / 当前频道全名。
+- 两个按钮共用 `refresh()`，刷新期间 `refreshing` 为真，图标变橙、按钮禁用。
+
+验证（2026-11-18 桌面）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：GitHub 分类下分类行右侧出现刷新图标；「今日速览」显示「GitHub 收藏 / 94 条内容」并带刷新图标。
+- 已验证：点「今日速览」的刷新图标，图标变橙，`~/.paseo/data/paseo-lantern/github-stars.json` 的 `fetchedAt` 更新到 15:33，条数仍 94。
+- 未验证：手机端。
 ---
 
 ## 12. 下次开工建议
@@ -957,14 +976,22 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 4. 侧边栏行未读数：`SidebarRow` 支持 badge 时加上。
 5. 按源配置刷新间隔（SPEC 5.3）。
 6. 陪读目标改成可手选 agent（现在只能取最近活跃的一个）。
+7. 手机端过一遍本轮新功能：GitHub 收藏分类、README 排版、两处刷新按钮、陪读开新对话。
 
 ---
 
 ## 13. 提交记录
 
+只记功能提交；docs 提交不记提交号，确认最新 HEAD 用 `git log -1`。
+
 ```
+b53c762 feat: add a refresh control to the star page and its brief
+c3ce26c feat: split the star page into articles and github stars
+1c1000c perf: create the companion conversation when the dialog opens
+e0e6e9c fix: resolve the companion workspace through the the-lantern project
+e7b22c8 feat: start a fresh conversation in the lantern for the companion prompt
+6b57799 fix: accept Paseo 0.16.0 so the phone loads the plugin
 3952290 feat: write the companion prompt into the agent composer
-docs: record the 0.16.1 upgrade and the composer write（本条只改文档，不记提交号，确认最新 HEAD 用 git log -1）
 b26530a feat: add hand-picked recommended sources to the discover tab
 0cb3e76 docs: add README and MIT license for open-source release
 b9b1913 chore: ignore local env files and drop machine paths from docs

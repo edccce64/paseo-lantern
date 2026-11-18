@@ -894,6 +894,29 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 
 未验证：手机端同样操作。
 
+## 11.32 开新对话提速：弹窗打开就预建（2026-11-18）
+
+用户反馈：开新对话慢。实测（桌面，8 FPS 录帧，点「开新对话」到输入框出现提示词）：
+
+- 改前：约 3.6 秒。
+- 改后：约 1.5–1.7 秒。点下去约 1.5 秒跳到新对话并看到提示词。
+
+做法（`client/article.tsx`）：
+
+- 拆出 `createCompanionAgent(title)`：`projects.list()` 与 `agents.list()` 用 `Promise.all` 并行，再 `workspaces.open({ cwd })`、`agents.create({ config, title })`。
+- 新增 `prefetchCompanion()`：弹窗一打开就在后台建对话，结果存 `spareAgentId`；正在建时存 `sparePending`，避免重复建。
+- 点「开新对话」时直接用 `spareAgentId`（没有就等 `sparePending`，再没有才现场建），所以建对话的 2 秒从点击路径上消失。
+- 取消弹窗不删除已建好的对话：它成为下次的 spare，最多留一个，不会每次取消都堆。
+
+剩下的 1.5 秒是宿主切换 workspace / 标签页并挂载输入框的时间，插件侧改不动。
+
+验证（2026-11-18 桌面）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：`computer_record watch` 录帧计时，点击到输入框出现提示词从 ~3.6 秒降到 ~1.5 秒。
+- 已验证：一次弹窗只建一个对话（`~/.paseo/agents/C-Users-edcccc-.paseo-the-lantern/` 里的文件数只 +1）。
+- 未验证：手机端实际手感；多次取消后 spare 复用是否正常（逻辑上会复用，没有实测第二轮取消）。
+
 ---
 
 ## 12. 下次开工建议

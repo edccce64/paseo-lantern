@@ -686,6 +686,62 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
     };
   }, [colors, compact]);
 
+  /** 已建好但还没写过字的对话，下次直接用，不再重复建 */
+  const spareAgentId = useRef<string | null>(null);
+  /** 正在后台预建的对话 */
+  const sparePending = useRef<Promise<string> | null>(null);
+
+  /** 建一个对话：找项目、拿 workspace、照最近活跃 agent 的配置建 */
+  async function createCompanionAgent(title: string): Promise<string> {
+    const [projects, recent] = await Promise.all([
+      paseo.projects.list(),
+      paseo.agents.list({
+        scope: "active",
+        sort: [{ key: "updated_at", direction: "desc" }],
+        page: { limit: 1 },
+      }),
+    ]);
+    const project = projects.projects.find(
+      (entry) =>
+        normalizeName(entry.projectCustomName ?? entry.projectDisplayName) === COMPANION_PROJECT ||
+        normalizeName(lastSegment(entry.projectRootPath)) === COMPANION_PROJECT,
+    );
+    if (!project) {
+      throw new Error("找不到名为 the-lantern 的项目。先在 Paseo 里建一个，目录随便选。");
+    }
+    const carrier = recent.entries[0]?.agent;
+    if (!carrier) throw new Error("先随便开一个对话。新对话要照它的模型创建。");
+
+    // open 会在项目目录下复用已有 workspace，没有就新建一个
+    const workspace = await paseo.workspaces.open({ cwd: project.projectRootPath });
+    const created = await paseo.workspaces.ref(workspace.id).agents.create({
+      config: {
+        provider: carrier.model ? `${carrier.provider}/${carrier.model}` : carrier.provider,
+        ...(carrier.currentModeId ? { modeId: carrier.currentModeId } : {}),
+        ...(carrier.thinkingOptionId ? { thinkingOptionId: carrier.thinkingOptionId } : {}),
+      },
+      title,
+    });
+    return created.id;
+  }
+
+  /** 后台先把对话建好；点按钮时就不等建对话的几秒 */
+  function prefetchCompanion() {
+    if (spareAgentId.current || sparePending.current) return;
+    const pending = createCompanionAgent(companionTitle(item.title));
+    sparePending.current = pending;
+    void pending
+      .then((id) => {
+        spareAgentId.current = id;
+      })
+      .catch(() => {
+        // 失败不管，点按钮时会再跑一次并报错
+      })
+      .finally(() => {
+        sparePending.current = null;
+      });
+  }
+
   async function openCompanion() {
     setCompanion({
       open: true,
@@ -697,48 +753,26 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       writing: false,
       error: null,
     });
+    prefetchCompanion();
   }
 
-  /** 点一下：在 the lantern 里开一个新对话，把提示词写进它的输入框，不自动发 */
+  /** 点一下：在 the-lantern 项目里开一个新对话，把提示词写进它的输入框，不自动发 */
   async function writeCompanion() {
     if (companion.sending || companion.writing) return;
     setCompanion((state) => ({ ...state, sending: true, error: null }));
     try {
-      const projects = await paseo.projects.list();
-      const project = projects.projects.find(
-        (entry) =>
-          normalizeName(entry.projectCustomName ?? entry.projectDisplayName) === COMPANION_PROJECT ||
-          normalizeName(lastSegment(entry.projectRootPath)) === COMPANION_PROJECT,
-      );
-      if (!project) {
-        throw new Error("找不到名为 the-lantern 的项目。先在 Paseo 里建一个，目录随便选。");
-      }
-      // open 会在项目目录下复用已有 workspace，没有就新建一个
-      const workspace = await paseo.workspaces.open({ cwd: project.projectRootPath });
-
-      const recent = await paseo.agents.list({
-        scope: "active",
-        sort: [{ key: "updated_at", direction: "desc" }],
-        page: { limit: 1 },
-      });
-      const carrier = recent.entries[0]?.agent;
-      if (!carrier) throw new Error("先随便开一个对话。新对话要照它的模型创建。");
-
-      const created = await paseo.workspaces.ref(workspace.id).agents.create({
-        config: {
-          provider: carrier.model ? `${carrier.provider}/${carrier.model}` : carrier.provider,
-          ...(carrier.currentModeId ? { modeId: carrier.currentModeId } : {}),
-          ...(carrier.thinkingOptionId ? { thinkingOptionId: carrier.thinkingOptionId } : {}),
-        },
-        title: companionTitle(item.title),
-      });
+      const title = companionTitle(item.title);
+      const reused = spareAgentId.current;
+      spareAgentId.current = null;
+      const agentId = reused ?? (await (sparePending.current ?? createCompanionAgent(title)));
+      sparePending.current = null;
 
       setCompanion((state) => ({
         ...state,
         sending: false,
         writing: true,
-        agentId: created.id,
-        agentTitle: companionTitle(item.title),
+        agentId,
+        agentTitle: title,
       }));
     } catch (error) {
       setCompanion((state) => ({

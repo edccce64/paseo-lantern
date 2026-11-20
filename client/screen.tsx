@@ -144,6 +144,15 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     const horizontal = 16;
     return {
       screen: { flex: 1, backgroundColor: p.paper },
+      // 手机：文章盖在列表上。定位逐条写死，不用 StyleSheet.absoluteFillObject
+      articleOverlay: {
+        position: "absolute" as const,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: p.paper,
+      },
       wideList: {
         // 380 是五个频道标签一行放得下的最小宽度，再窄「收藏」会掉行
         width: 380,
@@ -848,5 +857,11 @@ export function LanternSurface({ theme, layout }: LanternSurfaceProps) {
     );
   }
 
-  return articlePane ?? listPane;
+  // 手机：列表不卸载，文章盖在上面。列表保留滚动位置，返回时仍停在那篇文章的位置
+  return (
+    <View style={styles.screen}>
+      {listPane}
+      {articlePane ? <View style={styles.articleOverlay}>{articlePane}</View> : null}
+    </View>
+  );
 }

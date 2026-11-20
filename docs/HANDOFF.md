@@ -1042,6 +1042,28 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 - 已验证：打开 `nexu-io/openmotion` 点「AI 陪读」，弹窗里的提示词是「这个仓库是做什么的，用大白话讲，不要堆术语。请按这四段回答：一、这是什么…二、对我有什么用…」。
 - 已验证：文章频道（AIHOT）的陪读仍是原来的文章版提示词（代码按 `source` 分支，未改文章版内容）。
 - 未验证：实际发给 agent 后的回答质量；手机端弹窗排版。
+## 11.39 手机返回列表保留滚动位置（2026-11-20）
+
+问题：手机读完一篇文章返回列表，列表回到顶部，要重新往下刷。
+
+原因：`client/screen.tsx` 手机端原本写 `return articlePane ?? listPane`。打开文章时列表整个卸载，返回时重新挂载，`FlatList` 的滚动位置清零。
+
+做法：手机端列表不再卸载，文章盖在上面。
+
+- 新增样式 `articleOverlay`：`position: absolute` 加 top/left/right/bottom 全 0，背景 `palette.paper`。定位逐条写死，不用 `StyleSheet.absoluteFillObject`（见 11.23 的坑）。
+- 手机端返回值改成：`<View style={styles.screen}>` 里放 `listPane`，再按 `articlePane` 是否存在决定要不要叠一层 `articleOverlay`。
+- 桌面两栏没动，桌面本来就是列表常驻。
+
+效果：返回列表时仍停在那篇文章的位置。列表的其他状态（搜索词、频道、刷新状态）也跟着保留。
+
+验证（2026-11-20，桌面窗口改430×900 触发 compact）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：滚动列表到「Gemini 4 Neon / Karina Nguyen / Google 在 Gemini API 推出 Tool Retrieval」一段，点开 Karina Nguyen 那篇，文章占满全屏，点左上返回，列表仍停在同一位置（顶部还是「The Verge 05:59」那条），不是顶部。
+- 已验证：文章打开时列表不透出，遮罩层完全盖住。
+- 已验证：已读圆点在返回后消失（读状态正常写入）。
+- 未验证：手机真机上的同样操作；左滑返回的路径（代码与点返回按钮同一条）。
+
 ---
 
 ## 12. 下次开工建议
@@ -1063,6 +1085,8 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 只记功能提交；docs 提交不记提交号，确认最新 HEAD 用 `git log -1`。
 
 ```
+<新提交> fix: keep the list mounted on mobile so the scroll position survives
+6b36ab1 feat: give github repos their own companion prompt
 b53c762 feat: add a refresh control to the star page and its brief
 c3ce26c feat: split the star page into articles and github stars
 1c1000c perf: create the companion conversation when the dialog opens

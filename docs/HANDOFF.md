@@ -1066,6 +1066,27 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 
 ---
 
+## 11.40 陪读提示词可编辑，键盘不遮输入框（2026-11-20）
+
+用户要求：AI 陪读弹窗里能改提示词，输入法不能挡住提示词框。
+
+改动：
+
+- `client/article.tsx`：陪读弹窗的提示词从只读 `Text` 改成多行 `TextInput`（`multiline`、`textAlignVertical: "top"`、高 150–220、`backgroundColor: panel`）。值绑 `companion.prompt`，`onChangeText` 写回 state，所以写入 agent 输入框的就是改过的文本。弹窗那行说明末尾加了「提示词可以直接改」。
+- `client/article.tsx`：`writeCompanion()` 加空提示词拦截，提示「提示词是空的」。
+- `client/sheet.tsx`：新增 `scrollInputIntoView` prop。`LanternSheet` 监听 `keyboardDidShow` / `keyboardDidHide` 记键盘高度；键盘弹起时把弹层最大高度压到 `窗口高 − 键盘高 − 16`，弹层不会被顶出屏幕；`scrollInputIntoView` 为真时延迟 120ms 调 `scrollToEnd`，把输入框滚到可见位置。iOS 继续用 `KeyboardAvoidingView` 的 `padding`。
+- 陪读弹层传 `scrollInputIntoView`。订阅管理弹层不传，避免键盘弹起时把搜索框滚走。
+
+验证（2026-11-20，桌面窗口 430×900 触发 compact）：
+
+- 已验证：`npx tsc --noEmit` 退出码 0。
+- 已验证：弹窗里提示词是可编辑输入框（无障碍树里是 `Edit "陪读提示词"`）。在框里插入 `EDIT1` 后，值变成「帮我阅读这篇EDIT1文章…」。
+- 已验证：点「开新对话」后，the lantern 的新对话输入框里是改过的提示词（含 `EDIT`），没有发出去。
+- 已验证：验证完用 `ctrl+a` + `Delete` 清空了那个输入框。
+- 未验证：手机键盘弹起时输入框是否完全露出来。桌面用硬件键盘，测不出软键盘遮挡。
+
+---
+
 ## 12. 下次开工建议
 
 下一步优先级（按用户实际反馈排）：

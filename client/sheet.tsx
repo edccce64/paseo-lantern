@@ -1,9 +1,10 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,6 +12,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { FONT, palette } from "./style";
 
@@ -27,6 +29,8 @@ type Props = {
   closeButton?: boolean;
   /** false 时点遮罩不关闭，默认 true */
   dismissible?: boolean;
+  /** true 时键盘弹起后把内容滚到末尾，让输入框露出来 */
+  scrollInputIntoView?: boolean;
 };
 
 /**
@@ -45,10 +49,35 @@ export function LanternSheet({
   footer,
   closeButton = true,
   dismissible = true,
+  scrollInputIntoView = false,
 }: Props) {
   const p = useMemo(() => palette(theme), [theme]);
   const overlay = useRef(new Animated.Value(0)).current;
   const sheet = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<ScrollView>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  /** 键盘高度：弹起后用它限制弹层高度，避免弹层被顶出屏幕 */
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  // 键盘弹起后把内容滚到底，输入框不会被键盘盖住
+  useEffect(() => {
+    if (!open || keyboardHeight <= 0 || !scrollInputIntoView) return;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [keyboardHeight, open, scrollInputIntoView]);
 
   // 只做入场动画：遮罩 160ms 淡入，sheet 200ms 上浮 + 淡入
   useEffect(() => {
@@ -65,6 +94,9 @@ export function LanternSheet({
 
   const compact = layout.compact;
   const translateY = sheet.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  // 键盘弹起时只给键盘留出高度，弹层不能比剩下的空间高
+  const keyboardMaxHeight =
+    keyboardHeight > 0 ? Math.max(200, windowHeight - keyboardHeight - 16) : null;
 
   return (
     <View style={styles.root} pointerEvents="box-none">
@@ -87,6 +119,7 @@ export function LanternSheet({
             styles.sheet,
             compact ? styles.sheetMobile : styles.sheetDesktop,
             { backgroundColor: p.paper, opacity: sheet, transform: [{ translateY }] },
+            keyboardMaxHeight ? { maxHeight: keyboardMaxHeight } : null,
           ]}
         >
           {compact ? <View style={[styles.grabber, { backgroundColor: p.rule }]} /> : null}
@@ -107,6 +140,7 @@ export function LanternSheet({
             ) : null}
           </View>
           <ScrollView
+            ref={scrollRef}
             style={styles.scroll}
             contentContainerStyle={[styles.scrollContent, footer ? styles.scrollContentWithFooter : null]}
             keyboardShouldPersistTaps="handled"

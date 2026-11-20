@@ -4,7 +4,7 @@ import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { type ArticleVersion, articleRpc } from "../shared/article";
 import type { FeedItem } from "../shared/feed";
 import { EMPTY_STATE, itemKey, lanternStateSettings } from "../shared/settings";
@@ -638,17 +638,18 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         lineHeight: 18,
         color: colors.muted,
       },
-      preview: {
+      promptInput: {
         borderWidth: 1,
         borderColor: colors.rule,
         backgroundColor: colors.panel,
         padding: 12,
-      },
-      previewText: {
+        minHeight: 150,
+        maxHeight: 220,
         fontFamily: FONT.sans,
         color: colors.inkSoft,
         fontSize: 13.5,
         lineHeight: 21.6,
+        textAlignVertical: "top" as const,
       },
       dialogActions: { flexDirection: "row" as const, gap: 10, justifyContent: "flex-end" as const },
       cancel: {
@@ -761,6 +762,10 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
   /** 点一下：在 the-lantern 项目里开一个新对话，把提示词写进它的输入框，不自动发 */
   async function writeCompanion() {
     if (companion.sending || companion.writing) return;
+    if (!companion.prompt.trim()) {
+      setCompanion((state) => ({ ...state, error: "提示词是空的" }));
+      return;
+    }
     setCompanion((state) => ({ ...state, sending: true, error: null }));
     try {
       const title = companionTitle(item.title);
@@ -1189,6 +1194,7 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         layout={layout}
         open={companion.open}
         title="AI 陪读"
+        scrollInputIntoView
         onClose={() => setCompanion((state) => ({ ...state, open: false }))}
         footer={
           <View style={styles.dialogActions}>
@@ -1215,10 +1221,18 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         }
       >
         <View style={styles.dialog}>
-          <Text style={styles.dialogHint}>在 the-lantern 项目下开一个新对话，把提示词写进它的输入框，不自动发</Text>
-          <View style={styles.preview}>
-            <Text style={styles.previewText}>{companion.prompt}</Text>
-          </View>
+          <Text style={styles.dialogHint}>在 the-lantern 项目下开一个新对话，把提示词写进它的输入框，不自动发。提示词可以直接改。</Text>
+          <TextInput
+            value={companion.prompt}
+            onChangeText={(text) => setCompanion((state) => ({ ...state, prompt: text }))}
+            editable={!companion.sending && !companion.writing}
+            multiline
+            textAlignVertical="top"
+            accessibilityLabel="陪读提示词"
+            placeholder="写点什么"
+            placeholderTextColor={colors.muted}
+            style={styles.promptInput}
+          />
 
           {companion.error ? <Text style={styles.noteStrong}>{companion.error}</Text> : null}
         </View>

@@ -632,12 +632,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
       starGlyph: { fontSize: 19, lineHeight: 23, color: colors.ink },
       starGlyphOn: { fontSize: 19, lineHeight: 23, color: colors.accent },
       dialog: { gap: 12 },
-      dialogHint: {
-        fontFamily: FONT.sans,
-        fontSize: 12,
-        lineHeight: 18,
-        color: colors.muted,
-      },
       promptInput: {
         borderWidth: 1,
         borderColor: colors.rule,
@@ -1221,7 +1215,6 @@ export function ArticleView({ item, theme, layout, onBack }: Props) {
         }
       >
         <View style={styles.dialog}>
-          <Text style={styles.dialogHint}>在 the-lantern 项目下开一个新对话，把提示词写进它的输入框，不自动发。提示词可以直接改。</Text>
           <TextInput
             value={companion.prompt}
             onChangeText={(text) => setCompanion((state) => ({ ...state, prompt: text }))}

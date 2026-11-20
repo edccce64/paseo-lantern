@@ -1085,7 +1085,7 @@ x.com 的页面要登录，直接抓只能拿到登录墙。FxTwitter 是第三�
 只记功能提交；docs 提交不记提交号，确认最新 HEAD 用 `git log -1`。
 
 ```
-<新提交> fix: keep the list mounted on mobile so the scroll position survives
+9b9b093 fix: keep the list mounted on mobile so the scroll position survives
 6b36ab1 feat: give github repos their own companion prompt
 b53c762 feat: add a refresh control to the star page and its brief
 c3ce26c feat: split the star page into articles and github stars
